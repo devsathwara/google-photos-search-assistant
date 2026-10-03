@@ -55,12 +55,15 @@ function Choice({ label, hint, selected, onClick }) {
   );
 }
 
-export function Feedback({ description, plan, shownAt, tester }) {
-  const [step, setStep] = useState(0);
+// Remounted (via key) when a query card is marked "Found it", so the first
+// two questions start answered and the card opens on question 3.
+export function Feedback({ description, plan, shownAt, tester, foundIndex, queriesTried, queryResults }) {
+  const preset = foundIndex != null;
+  const [step, setStep] = useState(preset ? 2 : 0);
   const [done, setDone] = useState(false);
   const [answers, setAnswers] = useState({
-    found: null,
-    foundVia: null,
+    found: preset ? true : null,
+    foundVia: preset ? foundIndex : null,
     missReason: null,
     triedBefore: null,
     settingChange: null,
@@ -79,6 +82,7 @@ export function Feedback({ description, plan, shownAt, tester }) {
   function submit() {
     const via = answers.foundVia;
     sendFeedback({
+      kind: "summary",
       tester,
       outcome: answers.found ? "found" : "not_found",
       queryIndex: typeof via === "number" ? via + 1 : undefined,
@@ -90,6 +94,8 @@ export function Feedback({ description, plan, shownAt, tester }) {
       wantNative: answers.wantNative ?? "",
       comment: answers.comment.trim(),
       queryCount: queries.length,
+      queriesTried,
+      queryResults,
       topDiagnostic: plan.diagnostics[0]?.issue ?? "",
       description,
       shownAt,
@@ -288,6 +294,11 @@ export function Feedback({ description, plan, shownAt, tester }) {
         <div className="h-full rounded-full bg-[#1a73e8] transition-all duration-300" style={{ width: `${progress}%` }} />
       </div>
 
+      {preset && step >= 2 && typeof answers.foundVia === "number" ? (
+        <p className="mt-4 rounded-2xl bg-[#e6f4ea] px-4 py-2.5 text-sm text-[#137333]">
+          🎉 You found it with “{queries[answers.foundVia].query}”. A few quick questions.
+        </p>
+      ) : null}
       <h2 id="feedback-heading" className="mt-5 text-lg leading-7 font-medium text-[#202124]">
         {title}
       </h2>

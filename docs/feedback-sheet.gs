@@ -3,6 +3,7 @@
 // Put the /exec URL in Vercel as SHEET_WEBHOOK_URL.
 const COLUMNS = [
   "at",
+  "kind",
   "tester",
   "outcome",
   "query_index",
@@ -15,6 +16,8 @@ const COLUMNS = [
   "want_native",
   "comment",
   "query_count",
+  "queries_tried",
+  "query_results",
   "top_diagnostic",
   "description",
   "seconds_to_feedback",

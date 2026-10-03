@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { sendFeedback } from "./api.js";
 import { Feedback } from "./Feedback.jsx";
 import { FolderCheck } from "./FolderCheck.jsx";
 
@@ -53,7 +54,48 @@ export function LoadingState() {
   );
 }
 
+// Asked on the card itself once a query was opened or copied, so the
+// question is waiting when the tester comes back from Google Photos.
+function QueryVerdict({ verdict, onAnswer }) {
+  const pill = "rounded-full px-4 py-2 text-sm font-medium ring-1";
+  if (verdict === "found") {
+    return (
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-[#e6f4ea] px-4 py-3 ring-1 ring-[#ceead6]">
+        <p className="text-sm font-medium text-[#137333]">🎉 This search found it</p>
+        <button type="button" onClick={() => onAnswer(null)} className="text-sm font-medium text-[#5f6368] hover:underline">
+          Change
+        </button>
+      </div>
+    );
+  }
+  if (verdict === "miss") {
+    return (
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3 ring-1 ring-[#e8eaed]">
+        <p className="text-sm text-[#5f6368]">Not this one. Try the next search.</p>
+        <button type="button" onClick={() => onAnswer(null)} className="text-sm font-medium text-[#5f6368] hover:underline">
+          Change
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="rise mt-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-[#d2e3fc]">
+      <p className="text-sm font-medium text-[#202124]">Did this search find your photo?</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button type="button" onClick={() => onAnswer("found")} className={`${pill} bg-[#e6f4ea] text-[#137333] ring-[#ceead6] hover:bg-[#ceead6]`}>
+          Found it
+        </button>
+        <button type="button" onClick={() => onAnswer("miss")} className={`${pill} bg-white text-[#3c4043] ring-[#dadce0] hover:bg-[#f8f9fa]`}>
+          Not this one
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function Results({ description, plan, shownAt, tester }) {
+  const [tried, setTried] = useState(() => new Set());
+  const [verdicts, setVerdicts] = useState({});
   const [copiedId, setCopiedId] = useState("");
   const [copyError, setCopyError] = useState("");
   const timer = useRef(0);
@@ -75,6 +117,33 @@ export function Results({ description, plan, shownAt, tester }) {
   }
 
   const allQueries = plan.search_strategies.map((item) => item.query).join("\n");
+
+  function markTried(index) {
+    setTried((current) => (current.has(index) ? current : new Set(current).add(index)));
+  }
+
+  function answerQuery(index, verdict) {
+    setVerdicts((current) => ({ ...current, [index]: verdict }));
+    if (!verdict) return;
+    sendFeedback({
+      kind: "query",
+      tester,
+      outcome: verdict === "found" ? "found" : "not_found",
+      queryIndex: index + 1,
+      query: plan.search_strategies[index].query,
+      queryCount: plan.search_strategies.length,
+      topDiagnostic: plan.diagnostics[0]?.issue ?? "",
+      description,
+      shownAt,
+    });
+  }
+
+  const foundEntry = Object.entries(verdicts).find(([, value]) => value === "found");
+  const foundIndex = foundEntry ? Number(foundEntry[0]) : null;
+  const queryResults = Object.entries(verdicts)
+    .filter(([, value]) => value)
+    .map(([index, value]) => `${Number(index) + 1}:${value}`)
+    .join(",");
 
   return (
     <div className="rise space-y-8">
@@ -142,7 +211,10 @@ export function Results({ description, plan, shownAt, tester }) {
                   <div className="flex shrink-0 flex-wrap justify-end gap-1">
                     <button
                       type="button"
-                      onClick={() => copy(id, item.query)}
+                      onClick={() => {
+                        markTried(index);
+                        copy(id, item.query);
+                      }}
                       className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#1a73e8] ring-1 ring-[#d2e3fc] hover:bg-[#f8fbff]"
                     >
                       {copiedId === id ? "Copied" : "Copy"}
@@ -151,6 +223,7 @@ export function Results({ description, plan, shownAt, tester }) {
                       href={photosUrl(item.query)}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={() => markTried(index)}
                       className="rounded-full bg-[#1a73e8] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1558b0]"
                     >
                       Open
@@ -162,6 +235,9 @@ export function Results({ description, plan, shownAt, tester }) {
                   <p className="min-w-0 flex-1 break-words text-base font-medium text-[#202124]">{item.query}</p>
                 </div>
                 <p className="mt-3 text-sm leading-6 whitespace-pre-wrap text-[#3c4043]">{item.explanation}</p>
+                {tried.has(index) || verdicts[index] ? (
+                  <QueryVerdict verdict={verdicts[index] ?? null} onAnswer={(verdict) => answerQuery(index, verdict)} />
+                ) : null}
               </li>
             );
           })}
@@ -224,7 +300,16 @@ export function Results({ description, plan, shownAt, tester }) {
         </ul>
       </section>
 
-      <Feedback description={description} plan={plan} shownAt={shownAt} tester={tester} />
+      <Feedback
+        key={foundIndex ?? "none"}
+        description={description}
+        plan={plan}
+        shownAt={shownAt}
+        tester={tester}
+        foundIndex={foundIndex}
+        queriesTried={tried.size}
+        queryResults={queryResults}
+      />
     </div>
   );
 }

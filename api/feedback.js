@@ -2,6 +2,8 @@
 // Sheet when SHEET_WEBHOOK_URL is set (see docs/feedback-sheet.gs), and is
 // also printed to the Vercel logs as a fallback.
 const OUTCOMES = new Set(["found", "not_found"]);
+// "query": one answer on a single search card. "summary": the end card.
+const KINDS = new Set(["query", "summary"]);
 
 function text(value, max) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -21,11 +23,14 @@ export default async function handler(req, res) {
   const event = {
     event: "mvp_feedback",
     at: new Date().toISOString(),
+    kind: KINDS.has(body.kind) ? body.kind : "summary",
     tester: text(body.tester, 40),
     outcome: body.outcome,
     query_index: Number.isInteger(body.queryIndex) ? body.queryIndex : null,
     query: text(body.query, 200),
     query_count: Number.isInteger(body.queryCount) ? body.queryCount : null,
+    queries_tried: Number.isInteger(body.queriesTried) ? body.queriesTried : null,
+    query_results: text(body.queryResults, 120),
     top_diagnostic: text(body.topDiagnostic, 120),
     miss_reason: text(body.missReason, 40),
     tried_before: text(body.triedBefore, 40),
