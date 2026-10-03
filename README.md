@@ -28,7 +28,7 @@ Import this directory. `vercel.json` sets the Vite framework, build command, `di
 
 ## Test sessions
 
-Give each tester a tagged link, such as `https://<your-app>.vercel.app/?tester=samsung-1` or `?tester=crossapp-2`. After the results load, the page asks "Did you find the photo?", which query found it, and whether they turned on backup or changed a setting. `api/feedback.js` records the tester tag, outcome, winning query and its position, the top diagnosis, whether they changed a backup setting, the description (first 300 characters), and seconds from results to answer.
+Give each tester a tagged link, such as `https://<your-app>.vercel.app/?tester=samsung-1` or `?tester=crossapp-2`. After the results load, a five-step feedback card asks whether the tester found the photo, which search found it (or what they saw instead), whether they had looked for it before today, whether they changed a Google Photos setting, how helpful the page was (1–5), and whether they'd want it built into Google Photos. `api/feedback.js` records those answers with the tester tag, the top diagnosis, the description (first 300 characters), and seconds from results to submit.
 
 To collect answers in a Google Sheet:
 

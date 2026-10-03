@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { sendFeedback } from "./api.js";
+import { Feedback } from "./Feedback.jsx";
 import { FolderCheck } from "./FolderCheck.jsx";
 
 const STEPS = [
@@ -53,91 +53,6 @@ export function LoadingState() {
   );
 }
 
-// Two questions per result, sent as one event. "Found" plus the winning
-// query feeds the primary hypothesis (>=60% find their photo); the backup
-// question feeds the secondary one (>=30% act on a diagnosis).
-function Feedback({ description, plan, shownAt, tester }) {
-  const [step, setStep] = useState("found");
-  const [answer, setAnswer] = useState({ outcome: "", queryIndex: null });
-
-  function answerFound(outcome, queryIndex = null) {
-    setAnswer({ outcome, queryIndex });
-    setStep("action");
-  }
-
-  function send(tookAction) {
-    const { outcome, queryIndex } = answer;
-    sendFeedback({
-      tester,
-      outcome,
-      queryIndex: queryIndex == null ? undefined : queryIndex + 1,
-      query: queryIndex == null ? "" : plan.search_strategies[queryIndex].query,
-      queryCount: plan.search_strategies.length,
-      topDiagnostic: plan.diagnostics[0]?.issue ?? "",
-      tookAction,
-      description,
-      shownAt,
-    });
-    setStep("done");
-  }
-
-  const chip =
-    "rounded-full bg-white px-4 py-2 text-sm font-medium text-[#1a73e8] ring-1 ring-[#dadce0] hover:bg-[#f8f9fa]";
-  const headings = {
-    found: "Did you find the photo?",
-    which: "Which search found it?",
-    action: "Did you turn on backup or change a setting because of this page?",
-  };
-
-  return (
-    <section
-      aria-labelledby="feedback-heading"
-      className="rounded-3xl border border-[#e8eaed] bg-white p-4 shadow-[0_1px_2px_rgba(60,64,67,0.06)] sm:p-5"
-    >
-      {step === "done" ? (
-        <p id="feedback-heading" role="status" className="text-sm leading-6 text-[#188038]">
-          Thanks, that helps.
-        </p>
-      ) : (
-        <>
-          <h2 id="feedback-heading" className="text-base font-medium text-[#202124]">
-            {headings[step]}
-          </h2>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {step === "found" ? (
-              <>
-                <button type="button" onClick={() => setStep("which")} className={chip}>
-                  Yes
-                </button>
-                <button type="button" onClick={() => answerFound("not_found")} className={chip}>
-                  Not yet
-                </button>
-              </>
-            ) : null}
-            {step === "which"
-              ? plan.search_strategies.map((item, index) => (
-                  <button key={item.query} type="button" onClick={() => answerFound("found", index)} className={chip}>
-                    Query {index + 1}
-                  </button>
-                ))
-              : null}
-            {step === "action" ? (
-              <>
-                <button type="button" onClick={() => send(true)} className={chip}>
-                  Yes
-                </button>
-                <button type="button" onClick={() => send(false)} className={chip}>
-                  No
-                </button>
-              </>
-            ) : null}
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
 export function Results({ description, plan, shownAt, tester }) {
   const [copiedId, setCopiedId] = useState("");
   const [copyError, setCopyError] = useState("");
@@ -172,6 +87,12 @@ export function Results({ description, plan, shownAt, tester }) {
           {plan.pro_tips.length} fixes
         </p>
         <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#3c4043]">For “{description}”</p>
+        <a
+          href="#feedback"
+          className="mt-3 inline-flex items-center rounded-full bg-[#e8f0fe] px-4 py-2 text-sm font-medium text-[#174ea6] hover:bg-[#d2e3fc]"
+        >
+          Tried the searches? Tell us how it went ↓
+        </a>
       </div>
 
       <section aria-labelledby="strategies-heading">
