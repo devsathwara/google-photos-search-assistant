@@ -28,7 +28,15 @@ Import this directory. `vercel.json` sets the Vite framework, build command, `di
 
 ## Test sessions
 
-Give each tester a tagged link, such as `https://<your-app>.vercel.app/?tester=samsung-1` or `?tester=crossapp-2`. After the results load, the page asks "Did you find the photo?" and, on yes, which query found it. Each answer is written by `api/feedback.js` as one JSON line in the Vercel logs (Project → Logs, search `mvp_feedback`) with the tester tag, outcome, winning query and its position, the top diagnosis, the description (first 300 characters), and seconds from results to answer.
+Give each tester a tagged link, such as `https://<your-app>.vercel.app/?tester=samsung-1` or `?tester=crossapp-2`. After the results load, the page asks "Did you find the photo?" and, on yes, which query found it. `api/feedback.js` records the tester tag, outcome, winning query and its position, the top diagnosis, the description (first 300 characters), and seconds from results to answer.
+
+To collect answers in a Google Sheet:
+
+1. Create a blank Google Sheet. Open Extensions → Apps Script, replace the code with `docs/feedback-sheet.gs`, and save.
+2. Click Deploy → New deployment → Web app. Set "Execute as" to Me and "Who has access" to Anyone. Authorize, then copy the `/exec` URL.
+3. In Vercel, add `SHEET_WEBHOOK_URL` with that URL and redeploy.
+
+Each answer then appears as a new row. The same event is also printed to the Vercel logs (search `mvp_feedback`), but the free plan keeps those for about an hour.
 
 ```bash
 npx vercel

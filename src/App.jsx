@@ -291,19 +291,19 @@ function Explainer() {
       <h3 className="mt-5 text-base font-medium text-[#202124]">Why Google Photos search fails</h3>
       <ul className="mt-3 space-y-3">
         <li className="rounded-2xl bg-[#f8f9fa] px-4 py-3 text-sm leading-6 text-[#3c4043]">
-          <span className="font-medium text-[#202124]">Camera roll only. </span>
-          Search indexes backed-up camera photos. Pictures saved from WhatsApp, Instagram, or Downloads are
-          usually skipped, even when the file is in your library.
+          <span className="font-medium text-[#202124]">Only the camera folder backs up by default. </span>
+          On Android, folders like WhatsApp Images, Instagram, Downloads, and Screenshots stay on the phone
+          until you turn on backup for each one. Until then, search in the cloud can't find them.
         </li>
         <li className="rounded-2xl bg-[#f8f9fa] px-4 py-3 text-sm leading-6 text-[#3c4043]">
           <span className="font-medium text-[#202124]">Old phones and full storage. </span>
-          Photos from a previous device never show up if backup was off. A full Google account can stop
-          backup without a clear warning.
+          Photos from a previous phone, or from Samsung Gallery or iCloud, only show up if they were backed up
+          before the switch. A full Google account stops backup, and the warning is easy to miss.
         </li>
         <li className="rounded-2xl bg-[#f8f9fa] px-4 py-3 text-sm leading-6 text-[#3c4043]">
           <span className="font-medium text-[#202124]">Unlabeled faces. </span>
-          Searching a person's name only works after that face is labeled in the People album. Screenshots
-          and forwarded photos can also lose the original date.
+          Searching a person's name only works after their face group is named. Photos received on WhatsApp
+          lose the original date and location, so date searches miss them.
         </li>
       </ul>
     </section>

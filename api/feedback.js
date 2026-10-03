@@ -1,12 +1,13 @@
-// Test-session outcomes for Part 6. Each event is one JSON line in the
-// Vercel function logs: Project → Logs, filter on "mvp_feedback".
+// Test-session outcomes for Part 6. Each event becomes a row in a Google
+// Sheet when SHEET_WEBHOOK_URL is set (see docs/feedback-sheet.gs), and is
+// also printed to the Vercel logs as a fallback.
 const OUTCOMES = new Set(["found", "not_found"]);
 
 function text(value, max) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed." });
@@ -30,5 +31,21 @@ export default function handler(req, res) {
     seconds_to_feedback: Number.isFinite(body.seconds) ? Math.round(body.seconds) : null,
   };
   console.log(JSON.stringify(event));
+
+  // Awaited because Vercel can stop the function once the response is sent.
+  const sheetUrl = process.env.SHEET_WEBHOOK_URL;
+  if (sheetUrl) {
+    try {
+      const response = await fetch(sheetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(event),
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!response.ok) console.error("sheet_error", response.status);
+    } catch (err) {
+      console.error("sheet_error", err?.name || "unknown");
+    }
+  }
   return res.status(204).end();
 }
