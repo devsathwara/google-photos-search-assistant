@@ -97,13 +97,29 @@ details[open] .chevron {
   animation: shimmer 1.4s linear infinite;
 }
 
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.sheet {
+  animation: sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
 
   .rise,
-  .skeleton {
+  .skeleton,
+  .sheet {
     animation: none;
   }
 }

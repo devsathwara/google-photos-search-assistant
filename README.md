@@ -28,9 +28,9 @@ Import this directory. `vercel.json` sets the Vite framework, build command, `di
 
 ## Test sessions
 
-Give each tester a tagged link, such as `https://<your-app>.vercel.app/?tester=samsung-1` or `?tester=crossapp-2`. When a tester opens or copies a search, that search card asks "Did this search find your photo?" Each answer is logged as its own row (`kind` = `query`), which shows how often each query position works. If one is marked "Found it", the end card skips its first two questions.
+Give each tester a tagged link, such as `https://<your-app>.vercel.app/?tester=samsung-1` or `?tester=crossapp-2`. Feedback is asked when the tester comes back from Google Photos. After they open or copy a search and return to the page, a sheet slides up: "Did this search find your photo?" A yes leads to three short questions (had they looked before, did they change a setting, how helpful was it). A no points them to the next search, or to the same questions if they're done. A sticky "Done searching? Tell us how it went" bar covers testers who never leave the page.
 
-After the results load, a five-step feedback card asks whether the tester found the photo, which search found it (or what they saw instead), whether they had looked for it before today, whether they changed a Google Photos setting, how helpful the page was (1–5), and whether they'd want it built into Google Photos. `api/feedback.js` records those answers (`kind` = `summary`) with the tester tag, how many searches they tried and how each went, the top diagnosis, the description (first 300 characters), and seconds from results to submit.
+Each search answer is logged as its own row (`kind` = `query`), and the finished questions as one `summary` row with the tester tag, outcome, winning search, what they saw on a miss, whether they had looked before, any setting they changed, a 1–5 helpfulness rating, whether they'd want it in Google Photos, an optional comment, how many searches they tried and how each went, the top diagnosis, the description (first 300 characters), and seconds from results to submit.
 
 To collect answers in a Google Sheet:
 

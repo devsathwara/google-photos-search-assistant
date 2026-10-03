@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { sendFeedback } from "./api.js";
-import { Feedback } from "./Feedback.jsx";
+import { FeedbackSheet } from "./FeedbackSheet.jsx";
 import { FolderCheck } from "./FolderCheck.jsx";
 
 const LIKELIHOOD = {
@@ -70,44 +71,25 @@ export function LoadingState() {
   );
 }
 
-// Asked on the card itself once a query was opened or copied, so the
-// question is waiting when the tester comes back from Google Photos.
-function QueryVerdict({ verdict, onAnswer }) {
-  if (verdict) {
-    const found = verdict === "found";
-    return (
-      <div
-        className={`mt-3 flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-sm ${
-          found ? "bg-good-soft text-good" : "bg-paper text-ink-3"
-        }`}
-      >
-        <p className="font-medium">{found ? "✓ This search found it" : "Not this one. Try the next search."}</p>
-        <button type="button" onClick={() => onAnswer(null)} className="min-h-8 px-1 font-medium text-ink-3 underline-offset-2 hover:underline">
-          Undo
-        </button>
-      </div>
-    );
+// Status line on a search card after it was opened or copied. The full
+// questions live in the sheet; this is the way back to it.
+function QueryStatus({ verdict, onAsk, locked }) {
+  if (verdict === "found") {
+    return <p className="mt-3 rounded-xl bg-good-soft px-3.5 py-2.5 text-sm font-medium text-good">✓ This search found it</p>;
   }
+  if (verdict === "miss") {
+    return <p className="mt-3 rounded-xl bg-paper px-3.5 py-2.5 text-sm text-ink-3">Didn't find it with this one</p>;
+  }
+  if (locked) return null;
   return (
-    <div className="rise mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-accent-soft px-3.5 py-2.5">
-      <p className="text-sm font-medium text-ink">Did it find your photo?</p>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => onAnswer("found")}
-          className="min-h-9 rounded-full bg-good px-4 text-sm font-semibold text-white hover:bg-[#0f5a37]"
-        >
-          Yes, found it
-        </button>
-        <button
-          type="button"
-          onClick={() => onAnswer("miss")}
-          className="min-h-9 rounded-full border border-line-strong bg-card px-4 text-sm font-medium text-ink-2 hover:text-ink"
-        >
-          No
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={onAsk}
+      className="rise mt-3 flex min-h-11 w-full items-center justify-between rounded-xl bg-accent-soft px-3.5 text-left text-sm font-medium text-ink hover:bg-[#e2e9f9]"
+    >
+      Did it find your photo?
+      <span className="text-accent">Answer →</span>
+    </button>
   );
 }
 
@@ -116,7 +98,17 @@ export function Results({ description, plan, shownAt, tester }) {
   const [verdicts, setVerdicts] = useState({});
   const [copiedId, setCopiedId] = useState("");
   const [copyError, setCopyError] = useState("");
+  const [sheet, setSheet] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
   const timer = useRef(0);
+  // Which search the tester left to try, and whether the page was hidden or
+  // blurred since. Coming back with both set opens the sheet for that search.
+  const pending = useRef(null);
+  const wasAway = useRef(false);
+  const latest = useRef({ verdicts, submitted, sheet });
+  useEffect(() => {
+    latest.current = { verdicts, submitted, sheet };
+  }, [verdicts, submitted, sheet]);
 
   function flash(id) {
     setCopiedId(id);
@@ -136,11 +128,42 @@ export function Results({ description, plan, shownAt, tester }) {
 
   function markTried(index) {
     setTried((current) => (current.has(index) ? current : new Set(current).add(index)));
+    pending.current = index;
+    wasAway.current = false;
   }
 
+  useEffect(() => {
+    function away() {
+      if (pending.current != null) wasAway.current = true;
+    }
+    function back() {
+      if (document.visibilityState !== "visible" || !wasAway.current) return;
+      const index = pending.current;
+      pending.current = null;
+      wasAway.current = false;
+      const { verdicts: v, submitted: done, sheet: open } = latest.current;
+      if (index == null || done || open || v[index]) return;
+      setSheet({ type: "query", index });
+    }
+    function onVisibility() {
+      if (document.visibilityState === "hidden") away();
+      else back();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", away);
+    window.addEventListener("focus", back);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", away);
+      window.removeEventListener("focus", back);
+    };
+  }, []);
+
+  const closeSheet = useCallback(() => setSheet(null), []);
+
   function answerQuery(index, verdict) {
+    if (verdicts[index] === verdict) return;
     setVerdicts((current) => ({ ...current, [index]: verdict }));
-    if (!verdict) return;
     sendFeedback({
       kind: "query",
       tester,
@@ -156,10 +179,34 @@ export function Results({ description, plan, shownAt, tester }) {
 
   const foundEntry = Object.entries(verdicts).find(([, value]) => value === "found");
   const foundIndex = foundEntry ? Number(foundEntry[0]) : null;
-  const queryResults = Object.entries(verdicts)
-    .filter(([, value]) => value)
-    .map(([index, value]) => `${Number(index) + 1}:${value}`)
-    .join(",");
+
+  function submitSummary(answers) {
+    const via = answers.foundVia;
+    const queries = plan.search_strategies;
+    const queryResults = Object.entries(verdicts)
+      .map(([index, value]) => `${Number(index) + 1}:${value}`)
+      .join(",");
+    sendFeedback({
+      kind: "summary",
+      tester,
+      outcome: answers.found ? "found" : "not_found",
+      queryIndex: typeof via === "number" ? via + 1 : undefined,
+      query: typeof via === "number" ? queries[via].query : via === "other" ? "(something else)" : "",
+      missReason: answers.missReason ?? "",
+      triedBefore: answers.triedBefore ?? "",
+      settingChange: answers.settingChange ?? "",
+      helpful: answers.helpful ?? undefined,
+      wantNative: answers.wantNative ?? "",
+      comment: answers.comment.trim(),
+      queryCount: queries.length,
+      queriesTried: tried.size,
+      queryResults,
+      topDiagnostic: plan.diagnostics[0]?.issue ?? "",
+      description,
+      shownAt,
+    });
+    setSubmitted(true);
+  }
 
   return (
     <div className="rise">
@@ -227,7 +274,11 @@ export function Results({ description, plan, shownAt, tester }) {
                 <p className="mt-2.5 text-sm leading-6 text-ink-3">{item.explanation}</p>
 
                 {tried.has(index) || verdicts[index] ? (
-                  <QueryVerdict verdict={verdicts[index] ?? null} onAnswer={(verdict) => answerQuery(index, verdict)} />
+                  <QueryStatus
+                    verdict={verdicts[index] ?? null}
+                    locked={submitted}
+                    onAsk={() => setSheet({ type: "query", index })}
+                  />
                 ) : null}
               </li>
             );
@@ -287,18 +338,43 @@ export function Results({ description, plan, shownAt, tester }) {
         <FolderCheck />
       </section>
 
-      <div className="mt-12">
-        <Feedback
-          key={foundIndex ?? "none"}
-          description={description}
+      {submitted ? (
+        <p className="mt-12 rounded-2xl border border-line bg-card px-4 py-3.5 text-center text-sm text-ink-2">
+          Thanks for the feedback. Looking for another photo? Describe it at the top.
+        </p>
+      ) : (
+        <>
+          <div className="h-20" aria-hidden="true" />
+          {createPortal(
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+            <button
+              type="button"
+              onClick={() => setSheet({ type: "general" })}
+              className="pointer-events-auto mx-auto flex min-h-12 w-full max-w-md items-center justify-between gap-3 rounded-full bg-ink py-2 pr-2 pl-5 text-left text-white shadow-[0_8px_24px_rgba(28,27,25,0.28)] hover:bg-[#33312d]"
+            >
+              <span className="text-[15px] font-medium">Done searching? Tell us how it went</span>
+              <span className="rounded-full bg-white px-3.5 py-1.5 text-sm font-semibold text-ink">30 sec</span>
+            </button>
+          </div>,
+          document.body,
+          )}
+        </>
+      )}
+
+      {sheet ? createPortal(
+        <FeedbackSheet
+          key={sheet.type === "query" ? `q${sheet.index}` : "general"}
+          entry={sheet}
           plan={plan}
-          shownAt={shownAt}
-          tester={tester}
+          verdicts={verdicts}
           foundIndex={foundIndex}
-          queriesTried={tried.size}
-          queryResults={queryResults}
-        />
-      </div>
+          onVerdict={answerQuery}
+          onTryQuery={markTried}
+          onClose={closeSheet}
+          onSubmit={submitSummary}
+        />,
+        document.body,
+      ) : null}
     </div>
   );
 }
