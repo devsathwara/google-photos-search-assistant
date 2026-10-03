@@ -22,6 +22,8 @@ const EXAMPLES = [
 
 const HINTS = ["Who was in it", "Where", "Roughly when", "How you got it"];
 
+const STEPS = ["Describe what you remember", "Get searches to try", "See why it's hidden"];
+
 // Test links look like /?tester=samsung-1. The tag rides along with each
 // feedback event so results can be split by segment.
 function readTester() {
@@ -166,6 +168,14 @@ export default function App() {
             Describe it the way you remember it. You'll get the exact words to search, and the reason it
             might be hidden if search comes up empty.
           </p>
+          <ol className="mt-5 grid grid-cols-3 gap-2 sm:gap-3" aria-label="How it works">
+            {STEPS.map((step, index) => (
+              <li key={step} className="rounded-xl border border-line bg-card/60 px-3 py-2.5">
+                <span className="text-xs font-semibold text-ink-3">{index + 1}</span>
+                <p className="mt-0.5 text-[13px] leading-[18px] font-semibold text-ink sm:text-sm">{step}</p>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <form
@@ -267,6 +277,13 @@ export default function App() {
             </button>
             <p className="hidden text-xs text-ink-3 sm:block">or press Ctrl / ⌘ + Enter</p>
           </div>
+          <p className="mt-3 flex items-center gap-1.5 text-xs leading-5 text-ink-3">
+            <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <rect x="4" y="9" width="12" height="8" rx="2" />
+              <path d="M7 9V6.5a3 3 0 016 0V9" />
+            </svg>
+            No sign-in needed. This page never sees your photos.
+          </p>
         </form>
 
         <div ref={resultsRef} className="scroll-mt-4 pt-10">
@@ -280,7 +297,7 @@ export default function App() {
               tester={tester}
             />
           ) : null}
-          {status === "idle" ? <HowItWorks /> : null}
+          {status === "idle" ? <ExamplePreview /> : null}
         </div>
 
         <footer className="mt-14 border-t border-line pt-5 text-xs leading-5 text-ink-3">
@@ -295,28 +312,51 @@ export default function App() {
   );
 }
 
-// Shown before the first search, below the fold on phones. Three lines that
-// set expectations, instead of a wall of explanation above the input.
-function HowItWorks() {
-  const steps = [
-    ["Describe it", "Fuzzy is fine. Wrong year? Still useful."],
-    ["Try the searches", "Each one opens straight in Google Photos."],
-    ["Still missing?", "See why, usually a folder that never backed up."],
-  ];
+// Shown before the first search: a sample of the output, so a first-time
+// visitor knows what they'll get, plus the one fact most people don't know.
+// Clearly labelled as an example; nothing here is clickable.
+function ExamplePreview() {
   return (
-    <ol className="grid gap-5 sm:grid-cols-3 sm:gap-6">
-      {steps.map(([title, text], index) => (
-        <li key={title} className="flex gap-3 sm:block">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line-strong text-sm font-semibold text-ink-2">
-            {index + 1}
-          </span>
-          <div className="sm:mt-3">
-            <p className="text-[15px] font-semibold">{title}</p>
-            <p className="mt-0.5 text-sm leading-6 text-ink-3">{text}</p>
-          </div>
-        </li>
-      ))}
-    </ol>
+    <section aria-labelledby="preview-heading">
+      <h2 id="preview-heading" className="text-[15px] font-semibold">
+        What you'll get
+      </h2>
+      <div className="mt-3 rounded-2xl border border-line bg-card p-4" aria-label="Example result">
+        <p className="text-xs text-ink-3">
+          <span className="mr-1.5 rounded bg-paper px-1.5 py-0.5 font-semibold tracking-wide text-ink-2 uppercase">Example</span>
+          for “garba at Navratri, a photo my cousin sent on WhatsApp”
+        </p>
+
+        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-ink-3">
+          Search 1
+          <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-semibold text-white">Best bet</span>
+        </p>
+        <div className="mt-2 flex items-center gap-2.5 rounded-xl border border-line-strong bg-paper/50 px-3.5 py-2.5">
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-ink-3" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="M20 20l-4-4" strokeLinecap="round" />
+          </svg>
+          <span className="text-[17px] font-semibold">garba</span>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-ink-3">One activity word works better than a full sentence.</p>
+
+        <div className="mt-4 border-t border-line pt-4">
+          <p className="text-[15px] leading-6 font-semibold">
+            <span className="mr-2 inline-block rounded-md bg-warn-soft px-1.5 py-0.5 align-[1px] text-[11px] font-semibold tracking-wide text-warn uppercase">
+              Most likely
+            </span>
+            WhatsApp folder never backed up
+          </p>
+          <p className="mt-1 text-sm leading-6 text-ink-2">Plus the exact steps to turn it on.</p>
+        </div>
+      </div>
+
+      <p className="mt-5 text-sm leading-6 text-ink-2">
+        <span className="font-semibold text-ink">Why photos go missing: </span>
+        on Android, Google Photos only backs up your Camera folder by default. Photos from WhatsApp, Downloads and
+        Screenshots stay on your phone, where search can't see them, until you switch backup on.
+      </p>
+    </section>
   );
 }
 
