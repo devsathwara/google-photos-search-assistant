@@ -27,6 +27,7 @@ export default async function handler(req, res) {
     query: text(body.query, 200),
     query_count: Number.isInteger(body.queryCount) ? body.queryCount : null,
     top_diagnostic: text(body.topDiagnostic, 120),
+    took_backup_action: typeof body.tookAction === "boolean" ? body.tookAction : null,
     description: text(body.description, 300),
     seconds_to_feedback: Number.isFinite(body.seconds) ? Math.round(body.seconds) : null,
   };

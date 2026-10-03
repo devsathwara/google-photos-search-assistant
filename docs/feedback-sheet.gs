@@ -9,6 +9,7 @@ const COLUMNS = [
   "query",
   "query_count",
   "top_diagnostic",
+  "took_backup_action",
   "description",
   "seconds_to_feedback",
 ];

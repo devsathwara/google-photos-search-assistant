@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { sendFeedback } from "./api.js";
+import { FolderCheck } from "./FolderCheck.jsx";
 
 const STEPS = [
   "Open Google Photos on your phone, or photos.google.com in a browser where you are signed in.",
@@ -52,20 +53,28 @@ export function LoadingState() {
   );
 }
 
-// One answer per result. "Found" asks which query did it, because the
-// AI-Assisted Search Success Rate counts the winning query's position.
+// Two questions per result, sent as one event. "Found" plus the winning
+// query feeds the primary hypothesis (>=60% find their photo); the backup
+// question feeds the secondary one (>=30% act on a diagnosis).
 function Feedback({ description, plan, shownAt, tester }) {
-  const [step, setStep] = useState("ask");
+  const [step, setStep] = useState("found");
+  const [answer, setAnswer] = useState({ outcome: "", queryIndex: null });
 
-  function send(outcome, queryIndex) {
-    const query = queryIndex == null ? "" : plan.search_strategies[queryIndex].query;
+  function answerFound(outcome, queryIndex = null) {
+    setAnswer({ outcome, queryIndex });
+    setStep("action");
+  }
+
+  function send(tookAction) {
+    const { outcome, queryIndex } = answer;
     sendFeedback({
       tester,
       outcome,
       queryIndex: queryIndex == null ? undefined : queryIndex + 1,
-      query,
+      query: queryIndex == null ? "" : plan.search_strategies[queryIndex].query,
       queryCount: plan.search_strategies.length,
       topDiagnostic: plan.diagnostics[0]?.issue ?? "",
+      tookAction,
       description,
       shownAt,
     });
@@ -74,6 +83,11 @@ function Feedback({ description, plan, shownAt, tester }) {
 
   const chip =
     "rounded-full bg-white px-4 py-2 text-sm font-medium text-[#1a73e8] ring-1 ring-[#dadce0] hover:bg-[#f8f9fa]";
+  const headings = {
+    found: "Did you find the photo?",
+    which: "Which search found it?",
+    action: "Did you turn on backup or change a setting because of this page?",
+  };
 
   return (
     <section
@@ -87,25 +101,36 @@ function Feedback({ description, plan, shownAt, tester }) {
       ) : (
         <>
           <h2 id="feedback-heading" className="text-base font-medium text-[#202124]">
-            {step === "which" ? "Which search found it?" : "Did you find the photo?"}
+            {headings[step]}
           </h2>
           <div className="mt-3 flex flex-wrap gap-2">
-            {step === "which" ? (
-              plan.search_strategies.map((item, index) => (
-                <button key={item.query} type="button" onClick={() => send("found", index)} className={chip}>
-                  Query {index + 1}
-                </button>
-              ))
-            ) : (
+            {step === "found" ? (
               <>
                 <button type="button" onClick={() => setStep("which")} className={chip}>
                   Yes
                 </button>
-                <button type="button" onClick={() => send("not_found")} className={chip}>
+                <button type="button" onClick={() => answerFound("not_found")} className={chip}>
                   Not yet
                 </button>
               </>
-            )}
+            ) : null}
+            {step === "which"
+              ? plan.search_strategies.map((item, index) => (
+                  <button key={item.query} type="button" onClick={() => answerFound("found", index)} className={chip}>
+                    Query {index + 1}
+                  </button>
+                ))
+              : null}
+            {step === "action" ? (
+              <>
+                <button type="button" onClick={() => send(true)} className={chip}>
+                  Yes
+                </button>
+                <button type="button" onClick={() => send(false)} className={chip}>
+                  No
+                </button>
+              </>
+            ) : null}
           </div>
         </>
       )}
@@ -247,6 +272,8 @@ export function Results({ description, plan, shownAt, tester }) {
           )}
         </ul>
       </section>
+
+      <FolderCheck />
 
       <section aria-labelledby="tips-heading">
         <h2 id="tips-heading" className="text-lg font-medium text-[#202124]">
