@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { sendFeedback } from "./api.js";
 
 const STEPS = [
   "Open Google Photos on your phone, or photos.google.com in a browser where you are signed in.",
@@ -51,7 +52,68 @@ export function LoadingState() {
   );
 }
 
-export function Results({ description, plan }) {
+// One answer per result. "Found" asks which query did it, because the
+// AI-Assisted Search Success Rate counts the winning query's position.
+function Feedback({ description, plan, shownAt, tester }) {
+  const [step, setStep] = useState("ask");
+
+  function send(outcome, queryIndex) {
+    const query = queryIndex == null ? "" : plan.search_strategies[queryIndex].query;
+    sendFeedback({
+      tester,
+      outcome,
+      queryIndex: queryIndex == null ? undefined : queryIndex + 1,
+      query,
+      queryCount: plan.search_strategies.length,
+      topDiagnostic: plan.diagnostics[0]?.issue ?? "",
+      description,
+      shownAt,
+    });
+    setStep("done");
+  }
+
+  const chip =
+    "rounded-full bg-white px-4 py-2 text-sm font-medium text-[#1a73e8] ring-1 ring-[#dadce0] hover:bg-[#f8f9fa]";
+
+  return (
+    <section
+      aria-labelledby="feedback-heading"
+      className="rounded-3xl border border-[#e8eaed] bg-white p-4 shadow-[0_1px_2px_rgba(60,64,67,0.06)] sm:p-5"
+    >
+      {step === "done" ? (
+        <p id="feedback-heading" role="status" className="text-sm leading-6 text-[#188038]">
+          Thanks, that helps.
+        </p>
+      ) : (
+        <>
+          <h2 id="feedback-heading" className="text-base font-medium text-[#202124]">
+            {step === "which" ? "Which search found it?" : "Did you find the photo?"}
+          </h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {step === "which" ? (
+              plan.search_strategies.map((item, index) => (
+                <button key={item.query} type="button" onClick={() => send("found", index)} className={chip}>
+                  Query {index + 1}
+                </button>
+              ))
+            ) : (
+              <>
+                <button type="button" onClick={() => setStep("which")} className={chip}>
+                  Yes
+                </button>
+                <button type="button" onClick={() => send("not_found")} className={chip}>
+                  Not yet
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+export function Results({ description, plan, shownAt, tester }) {
   const [copiedId, setCopiedId] = useState("");
   const [copyError, setCopyError] = useState("");
   const timer = useRef(0);
@@ -213,6 +275,8 @@ export function Results({ description, plan }) {
           )}
         </ul>
       </section>
+
+      <Feedback description={description} plan={plan} shownAt={shownAt} tester={tester} />
     </div>
   );
 }

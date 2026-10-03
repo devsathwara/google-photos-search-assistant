@@ -1,12 +1,7 @@
 import { parsePlan } from "./plan.js";
-import { SYSTEM_PROMPT } from "./prompt.js";
+import { ENDPOINT, requestBody } from "./request.js";
 
-// grok-4.3 is $1.25 / $2.50 per 1M tokens. grok-4.7 is $2 / $6, and it
-// reasons by default, which is billed as output. reasoning_effort "none"
-// skips that. https://docs.x.ai/developers/models/grok-4.3
-export const MODEL = "grok-4.3";
-
-const ENDPOINT = "https://api.x.ai/v1/chat/completions";
+export { MODEL } from "./request.js";
 
 export class ApiError extends Error {
   constructor(message) {
@@ -36,7 +31,7 @@ function readApiMessage(body) {
   return "";
 }
 
-async function errorMessage(response) {
+async function errorMessage(response, useServer) {
   let apiMessage = "";
   try {
     apiMessage = readApiMessage(await response.json());
@@ -44,6 +39,8 @@ async function errorMessage(response) {
     apiMessage = "";
   }
 
+  // api/analyze.js already writes a message meant for the visitor.
+  if (useServer && apiMessage) return apiMessage;
   if (response.status === 401 || response.status === 403) {
     return "That API key was rejected. Paste a valid key from console.x.ai and try again.";
   }
@@ -57,32 +54,52 @@ async function errorMessage(response) {
   return `The request failed (${response.status}). Try again.`;
 }
 
-export async function analyzeMemory({ apiKey, description, signal }) {
+// True when api/analyze.js has a shared key, so visitors can skip the key
+// field. Under plain `vite` dev there is no /api route and this is false.
+export async function hasServerKey() {
+  try {
+    const response = await fetch("/api/analyze", { signal: AbortSignal.timeout(5_000) });
+    if (!response.ok) return false;
+    const body = await response.json();
+    return body?.configured === true;
+  } catch {
+    return false;
+  }
+}
+
+// Outcome logging for test sessions. Failures are ignored on purpose:
+// a lost data point must never interrupt the person searching.
+export function sendFeedback({ shownAt, ...event }) {
+  fetch("/api/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...event, seconds: (Date.now() - shownAt) / 1000 }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
+export async function analyzeMemory({ apiKey, description, signal, useServer }) {
   const timeoutSignal = AbortSignal.timeout(45_000);
   const combined = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
   let response;
   try {
-    response = await fetch(ENDPOINT, {
-      method: "POST",
-      signal: combined,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0.2,
-        reasoning_effort: "none",
-        // Live Search (search_parameters) was removed in January 2026.
-        // Including it makes api.x.ai return HTTP 410.
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: description },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
+    response = useServer
+      ? await fetch("/api/analyze", {
+          method: "POST",
+          signal: combined,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description }),
+        })
+      : await fetch(ENDPOINT, {
+          method: "POST",
+          signal: combined,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(requestBody(description)),
+        });
   } catch (err) {
     if (signal?.aborted) {
       const abortError = new Error("Aborted");
@@ -92,11 +109,15 @@ export async function analyzeMemory({ apiKey, description, signal }) {
     if (err?.name === "TimeoutError" || timeoutSignal.aborted) {
       throw new ApiError("The request took too long. Try again.");
     }
-    throw new ApiError("Could not reach api.x.ai. Check your connection and try again.");
+    throw new ApiError(
+      useServer
+        ? "Could not reach the server. Check your connection and try again."
+        : "Could not reach api.x.ai. Check your connection and try again.",
+    );
   }
 
   if (!response.ok) {
-    throw new ApiError(await errorMessage(response));
+    throw new ApiError(await errorMessage(response, useServer));
   }
 
   let payload;

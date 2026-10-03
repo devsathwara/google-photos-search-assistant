@@ -1,9 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { analyzeMemory, MODEL } from "./api.js";
+import { analyzeMemory, hasServerKey, MODEL } from "./api.js";
 import { LoadingState, Results } from "./Results.jsx";
 
 const STORAGE_KEY = "gpsa.xaiApiKey";
 const EXAMPLE = "Photo of my dog at the park from last summer";
+
+// Test links look like /?tester=samsung-1. The tag rides along with each
+// feedback event so results can be split by segment.
+function readTester() {
+  try {
+    return (new URLSearchParams(window.location.search).get("tester") ?? "").slice(0, 40);
+  } catch {
+    return "";
+  }
+}
 
 function readStoredKey() {
   try {
@@ -20,6 +30,9 @@ export default function App() {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  // null until the check finishes, so the key field doesn't flash for testers.
+  const [serverKey, setServerKey] = useState(null);
+  const [tester] = useState(readTester);
   const memoryRef = useRef(null);
   const resultsRef = useRef(null);
   const abortRef = useRef(null);
@@ -41,6 +54,16 @@ export default function App() {
 
   useEffect(() => {
     return () => abortRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    let live = true;
+    hasServerKey().then((configured) => {
+      if (live) setServerKey(configured);
+    });
+    return () => {
+      live = false;
+    };
   }, []);
 
   function onKeyChange(event) {
@@ -68,7 +91,7 @@ export default function App() {
       memoryRef.current?.focus();
       return;
     }
-    if (!key) {
+    if (!serverKey && !key) {
       setError("Add your xAI API key at the top. You can create one at console.x.ai.");
       document.getElementById("api-key")?.focus();
       return;
@@ -86,9 +109,10 @@ export default function App() {
         apiKey: key,
         description,
         signal: controller.signal,
+        useServer: serverKey === true,
       });
       if (controller.signal.aborted) return;
-      setResult({ description, plan });
+      setResult({ description, plan, shownAt: Date.now() });
       setStatus("success");
     } catch (err) {
       if (err?.name === "AbortError" || controller.signal.aborted) return;
@@ -124,6 +148,7 @@ export default function App() {
       </header>
 
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
+        {serverKey === false ? (
         <section className="rounded-3xl border border-[#e8eaed] bg-white p-4 shadow-[0_1px_2px_rgba(60,64,67,0.08),0_8px_24px_rgba(60,64,67,0.04)] sm:p-5">
           <form autoComplete="off" onSubmit={(event) => event.preventDefault()}>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -172,6 +197,7 @@ export default function App() {
             </p>
           </form>
         </section>
+        ) : null}
 
         <form
           onSubmit={onSubmit}
@@ -226,13 +252,22 @@ export default function App() {
         <div ref={resultsRef} className="scroll-mt-24">
           {busy ? <LoadingState /> : null}
           {status === "success" && result ? (
-            <Results description={result.description} plan={result.plan} />
+            <Results
+              key={result.shownAt}
+              description={result.description}
+              plan={result.plan}
+              shownAt={result.shownAt}
+              tester={tester}
+            />
           ) : null}
         </div>
 
         <footer className="pb-4 text-xs leading-5 text-[#80868b]">
-          This page does not read your Google Photos library. It only suggests what to type into search.
-          Calls go from your browser to api.x.ai using {MODEL}. Not affiliated with Google.
+          This page does not read your Google Photos library. It only suggests what to type into search.{" "}
+          {serverKey
+            ? `Descriptions are sent to api.x.ai (${MODEL}) to generate suggestions.`
+            : `Calls go from your browser to api.x.ai using ${MODEL}.`}{" "}
+          Not affiliated with Google.
         </footer>
       </main>
     </div>

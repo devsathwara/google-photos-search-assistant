@@ -2,7 +2,10 @@
 
 A single-page helper for the NextLeap PM Fellowship graduation project. Describe a photo from memory. The app asks Grok for short [Google Photos](https://photos.google.com) search queries, likely reasons the search comes back empty, and steps to fix the most likely miss.
 
-There is no backend. The page calls `https://api.x.ai/v1/chat/completions` from the browser with a key you paste in. The key is stored in `localStorage` on your device.
+There are two ways to call Grok:
+
+- With `XAI_API_KEY` set on Vercel, the page calls `api/analyze.js`, which forwards the description to xAI with that key. Visitors never see a key field. Use this for user testing.
+- Without it, the page shows a key field and calls `https://api.x.ai/v1/chat/completions` straight from the browser. The pasted key is stored in `localStorage` on that device.
 
 ## Run locally
 
@@ -17,9 +20,15 @@ Open the URL Vite prints. Create a key at [console.x.ai](https://console.x.ai), 
 
 Requests use `grok-4.3` with reasoning turned off. That is $1.25 per million input tokens and $2.50 per million output tokens, versus $2 and $6 for `grok-4.7`, which also spends extra tokens on reasoning. Prices: [docs.x.ai/developers/models](https://docs.x.ai/developers/models).
 
+`npm run dev` has no `/api` routes, so it always shows the key field. Run `npx vercel dev` to try the shared-key path locally.
+
 ## Deploy on Vercel
 
-Import this directory. `vercel.json` sets the Vite framework, build command, `dist` output, and a single-page rewrite. No environment variables are required, because each visitor brings their own API key.
+Import this directory. `vercel.json` sets the Vite framework, build command, `dist` output, and a single-page rewrite that leaves `/api/*` alone. Add `XAI_API_KEY` under Project → Settings → Environment Variables, then redeploy. Each call is capped at 1,500 output tokens, which keeps one search well under a cent.
+
+## Test sessions
+
+Give each tester a tagged link, such as `https://<your-app>.vercel.app/?tester=samsung-1` or `?tester=crossapp-2`. After the results load, the page asks "Did you find the photo?" and, on yes, which query found it. Each answer is written by `api/feedback.js` as one JSON line in the Vercel logs (Project → Logs, search `mvp_feedback`) with the tester tag, outcome, winning query and its position, the top diagnosis, the description (first 300 characters), and seconds from results to answer.
 
 ```bash
 npx vercel
