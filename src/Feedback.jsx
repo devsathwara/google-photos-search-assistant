@@ -41,15 +41,15 @@ function Choice({ label, hint, selected, onClick }) {
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-[15px] leading-5 ring-1 transition-colors ${
+      className={`flex min-h-12 w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-[15px] leading-5 transition-colors ${
         selected
-          ? "bg-[#e8f0fe] font-medium text-[#174ea6] ring-[#1a73e8]"
-          : "bg-white text-[#202124] ring-[#dadce0] hover:bg-[#f8f9fa]"
+          ? "border-ink bg-paper font-semibold text-ink"
+          : "border-line bg-card text-ink hover:border-line-strong"
       }`}
     >
       <span className="min-w-0 flex-1">
         {label}
-        {hint ? <span className="mt-0.5 block truncate text-xs font-normal text-[#5f6368]">{hint}</span> : null}
+        {hint ? <span className="mt-0.5 block truncate text-xs font-normal text-ink-3">{hint}</span> : null}
       </span>
     </button>
   );
@@ -108,14 +108,12 @@ export function Feedback({ description, plan, shownAt, tester, foundIndex, queri
       <section
         id="feedback"
         aria-live="polite"
-        className="rise rounded-3xl border border-[#ceead6] bg-[#e6f4ea] p-5 text-center sm:p-6"
+        className="rise rounded-2xl border border-line bg-card p-6 text-center"
       >
-        <p className="text-2xl" aria-hidden="true">
-          🙏
-        </p>
-        <h2 className="mt-2 text-lg font-medium text-[#202124]">Thank you</h2>
-        <p className="mx-auto mt-1 max-w-sm text-sm leading-6 text-[#3c4043]">
-          Your answers go straight into the research for this project. Looking for another photo? Describe it above.
+        <h2 className="text-[20px] font-semibold tracking-[-0.01em]">Thank you</h2>
+        <p className="mx-auto mt-1.5 max-w-sm text-[15px] leading-6 text-ink-2">
+          Your answers go straight into the research behind this project. Looking for another photo? Describe it
+          at the top.
         </p>
       </section>
     );
@@ -130,7 +128,7 @@ export function Feedback({ description, plan, shownAt, tester, foundIndex, queri
 
   if (current === "found") {
     title = "Did you find your photo?";
-    subtitle = "Try the searches above in Google Photos, then tell us how it went.";
+    subtitle = "Once you've tried the searches above.";
     body = (
       <div className="grid gap-2 sm:grid-cols-2">
         <Choice label="Found it!" selected={answers.found === true} onClick={() => answer({ found: true, missReason: null })} />
@@ -213,24 +211,24 @@ export function Feedback({ description, plan, shownAt, tester, foundIndex, queri
                 role="radio"
                 aria-checked={answers.helpful === value}
                 onClick={() => setAnswers((a) => ({ ...a, helpful: value }))}
-                className={`h-12 rounded-2xl text-base font-medium ring-1 ${
+                className={`h-12 rounded-xl border text-base font-semibold ${
                   answers.helpful === value
-                    ? "bg-[#1a73e8] text-white ring-[#1a73e8]"
-                    : "bg-white text-[#202124] ring-[#dadce0] hover:bg-[#f8f9fa]"
+                    ? "border-ink bg-ink text-white"
+                    : "border-line bg-card text-ink hover:border-line-strong"
                 }`}
               >
                 {value}
               </button>
             ))}
           </div>
-          <div className="mt-1.5 flex justify-between text-xs text-[#5f6368]">
+          <div className="mt-1.5 flex justify-between text-xs text-ink-3">
             <span>Not helpful</span>
             <span>Very helpful</span>
           </div>
         </div>
 
         <div>
-          <p className="text-sm font-medium text-[#202124]">Would you want this built into Google Photos search?</p>
+          <p className="text-sm font-semibold">Would you want this built into Google Photos search?</p>
           <div className="mt-2 grid grid-cols-3 gap-2">
             {WANT_NATIVE.map((item) => (
               <Choice
@@ -244,8 +242,8 @@ export function Feedback({ description, plan, shownAt, tester, foundIndex, queri
         </div>
 
         <div>
-          <label htmlFor="feedback-comment" className="text-sm font-medium text-[#202124]">
-            Anything else? <span className="font-normal text-[#5f6368]">(optional)</span>
+          <label htmlFor="feedback-comment" className="text-sm font-semibold">
+            Anything else? <span className="font-normal text-ink-3">(optional)</span>
           </label>
           <textarea
             id="feedback-comment"
@@ -254,7 +252,7 @@ export function Feedback({ description, plan, shownAt, tester, foundIndex, queri
             value={answers.comment}
             onChange={(event) => setAnswers((a) => ({ ...a, comment: event.target.value }))}
             placeholder="What was confusing, or what would have helped?"
-            className="mt-2 w-full resize-y rounded-2xl border border-[#dadce0] bg-[#f8f9fa] px-4 py-3 text-base leading-6 outline-none placeholder:text-[#80868b] focus:border-[#1a73e8] focus:bg-white focus:ring-2 focus:ring-[#d2e3fc]"
+            className="mt-2 w-full resize-y rounded-xl border border-line bg-paper/60 px-3.5 py-3 text-base leading-6 outline-none placeholder:text-ink-3/80 focus:border-ink focus:bg-card"
           />
         </div>
 
@@ -262,7 +260,7 @@ export function Feedback({ description, plan, shownAt, tester, foundIndex, queri
           type="button"
           onClick={submit}
           disabled={answers.helpful == null}
-          className="inline-flex h-12 w-full items-center justify-center rounded-full bg-[#1a73e8] px-6 text-sm font-medium text-white hover:bg-[#1558b0] disabled:cursor-not-allowed disabled:bg-[#c6dafc]"
+          className="inline-flex h-12 w-full items-center justify-center rounded-full bg-ink px-6 text-[15px] font-semibold text-white hover:bg-[#33312d] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {answers.helpful == null ? "Pick a rating to send" : "Send feedback"}
         </button>
@@ -274,35 +272,35 @@ export function Feedback({ description, plan, shownAt, tester, foundIndex, queri
     <section
       id="feedback"
       aria-labelledby="feedback-heading"
-      className="scroll-mt-24 rounded-3xl border border-[#d2e3fc] bg-white p-5 shadow-[0_1px_2px_rgba(60,64,67,0.08),0_8px_24px_rgba(60,64,67,0.06)] sm:p-6"
+      className="scroll-mt-4 rounded-2xl border border-line bg-card p-4 shadow-[0_1px_0_rgba(28,27,25,0.04),0_12px_32px_-12px_rgba(28,27,25,0.12)] sm:p-5"
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-medium tracking-wide text-[#1a73e8]">
-          Quick feedback · {step + 1} of {STEPS.length}
+        <p className="text-xs font-medium text-ink-3">
+          Help us improve this · {step + 1} of {STEPS.length}
         </p>
         {step > 0 ? (
           <button
             type="button"
             onClick={() => setStep((s) => s - 1)}
-            className="rounded-full px-3 py-1 text-sm font-medium text-[#5f6368] hover:bg-[#f1f3f4]"
+            className="min-h-8 rounded-full px-3 text-sm font-medium text-ink-3 hover:bg-paper hover:text-ink"
           >
             ← Back
           </button>
         ) : null}
       </div>
-      <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#e8eaed]" aria-hidden="true">
-        <div className="h-full rounded-full bg-[#1a73e8] transition-all duration-300" style={{ width: `${progress}%` }} />
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-paper" aria-hidden="true">
+        <div className="h-full rounded-full bg-ink transition-all duration-300" style={{ width: `${progress}%` }} />
       </div>
 
       {preset && step >= 2 && typeof answers.foundVia === "number" ? (
-        <p className="mt-4 rounded-2xl bg-[#e6f4ea] px-4 py-2.5 text-sm text-[#137333]">
-          🎉 You found it with “{queries[answers.foundVia].query}”. A few quick questions.
+        <p className="mt-4 rounded-xl bg-good-soft px-3.5 py-2.5 text-sm font-medium text-good">
+          ✓ You found it with “{queries[answers.foundVia].query}”. A few quick questions.
         </p>
       ) : null}
-      <h2 id="feedback-heading" className="mt-5 text-lg leading-7 font-medium text-[#202124]">
+      <h2 id="feedback-heading" className="mt-4 text-[20px] leading-7 font-semibold tracking-[-0.01em]">
         {title}
       </h2>
-      {subtitle ? <p className="mt-1 text-sm leading-6 text-[#5f6368]">{subtitle}</p> : null}
+      {subtitle ? <p className="mt-1 text-sm leading-6 text-ink-2">{subtitle}</p> : null}
       <div key={current + String(answers.found)} className="rise mt-4">
         {body}
       </div>

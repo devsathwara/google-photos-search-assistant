@@ -3,7 +3,24 @@ import { analyzeMemory, hasServerKey, MODEL } from "./api.js";
 import { LoadingState, Results } from "./Results.jsx";
 
 const STORAGE_KEY = "gpsa.xaiApiKey";
-const EXAMPLE = "Photo of my dog at the park from last summer";
+
+// One per research segment: cross-app sharer, Samsung migrant, large library.
+const EXAMPLES = [
+  {
+    label: "WhatsApp photo from a cousin",
+    text: "Me and my cousin doing garba at Navratri in 2023. She sent it to me on WhatsApp.",
+  },
+  {
+    label: "From my old Samsung",
+    text: "College trip to Goa with friends, around 2019. It was on my old Samsung phone before I switched.",
+  },
+  {
+    label: "Somewhere in 20,000 photos",
+    text: "My dog asleep on the grey sofa, sometime last winter.",
+  },
+];
+
+const HINTS = ["Who was in it", "Where", "Roughly when", "How you got it"];
 
 // Test links look like /?tester=samsung-1. The tag rides along with each
 // feedback event so results can be split by segment.
@@ -76,8 +93,8 @@ export default function App() {
     if (error) setError("");
   }
 
-  function fillExample() {
-    setDraft(EXAMPLE);
+  function applyExample(text) {
+    setDraft(text);
     setError("");
     requestAnimationFrame(() => memoryRef.current?.focus());
   }
@@ -87,12 +104,12 @@ export default function App() {
     const description = draft.trim();
     const key = apiKey.trim();
     if (!description) {
-      setError("Describe the photo you're looking for.");
+      setError("Tell us a little about the photo first.");
       memoryRef.current?.focus();
       return;
     }
     if (!serverKey && !key) {
-      setError("Add your xAI API key at the top. You can create one at console.x.ai.");
+      setError("Add your xAI API key below. You can create one at console.x.ai.");
       document.getElementById("api-key")?.focus();
       return;
     }
@@ -132,30 +149,77 @@ export default function App() {
   const busy = status === "loading";
 
   return (
-    <div className="min-h-screen pb-[env(safe-area-inset-bottom)] font-sans text-[#202124]">
-      <header className="sticky top-0 z-20 border-b border-[#e8eaed] bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-3xl items-start gap-3 px-4 py-3 sm:px-6">
-          <Mark />
-          <div className="min-w-0">
-            <h1 className="text-[17px] leading-6 font-medium tracking-[-0.01em] sm:text-xl">
-              Google Photos Search Assistant
-            </h1>
-            <p className="text-[13px] leading-5 text-[#5f6368]">
-              AI-powered photo retrieval helper — Part of NextLeap PM Fellowship Graduation Project
-            </p>
-          </div>
-        </div>
+    <div className="min-h-screen pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-ink">
+      <header className="mx-auto flex w-full max-w-2xl items-center gap-2.5 px-4 pt-5 sm:px-6 sm:pt-8">
+        <Mark />
+        <p className="text-[15px] leading-5 font-semibold tracking-[-0.01em]">
+          Search Assistant <span className="font-normal text-ink-3">for Google Photos</span>
+        </p>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
-        {serverKey === false ? (
-        <section className="rounded-3xl border border-[#e8eaed] bg-white p-4 shadow-[0_1px_2px_rgba(60,64,67,0.08),0_8px_24px_rgba(60,64,67,0.04)] sm:p-5">
-          <form autoComplete="off" onSubmit={(event) => event.preventDefault()}>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <label htmlFor="api-key" className="text-sm font-medium text-[#202124] sm:w-28 sm:shrink-0">
+      <main className="mx-auto w-full max-w-2xl px-4 pb-10 sm:px-6">
+        <section className="pt-8 pb-6 sm:pt-12 sm:pb-8">
+          <h1 className="text-[30px] leading-[1.12] font-semibold tracking-[-0.025em] sm:text-[40px]">
+            Can't find a photo in Google&nbsp;Photos?
+          </h1>
+          <p className="mt-3 max-w-xl text-[17px] leading-7 text-ink-2">
+            Describe it the way you remember it. You'll get the exact words to search, and the reason it
+            might be hidden if search comes up empty.
+          </p>
+        </section>
+
+        <form
+          onSubmit={onSubmit}
+          className="rounded-[20px] border border-line bg-card p-4 shadow-[0_1px_0_rgba(28,27,25,0.04),0_12px_32px_-12px_rgba(28,27,25,0.12)] sm:p-5"
+        >
+          <label htmlFor="memory" className="text-[15px] font-semibold">
+            What do you remember?
+          </label>
+          <p id="memory-help" className="mt-1 flex flex-wrap gap-x-1.5 text-sm leading-6 text-ink-3">
+            {HINTS.map((hint, index) => (
+              <span key={hint}>
+                {hint}
+                {index < HINTS.length - 1 ? <span aria-hidden="true"> ·</span> : null}
+              </span>
+            ))}
+          </p>
+          <textarea
+            ref={memoryRef}
+            id="memory"
+            name="memory"
+            value={draft}
+            onChange={onDraftChange}
+            onKeyDown={onMemoryKeyDown}
+            maxLength={4000}
+            rows={4}
+            aria-describedby="memory-help"
+            placeholder="e.g. Mom cutting the cake at my sister's wedding, Surat, 2021. Someone shared it in the family group."
+            className="mt-3 min-h-[120px] w-full resize-y rounded-xl border border-line bg-paper/60 px-3.5 py-3 text-base leading-6 text-ink outline-none placeholder:text-ink-3/80 focus:border-ink focus:bg-card"
+          />
+
+          <div className="mt-3">
+            <p className="text-xs font-medium text-ink-3">Or start from an example</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {EXAMPLES.map((example) => (
+                <button
+                  key={example.label}
+                  type="button"
+                  onClick={() => applyExample(example.text)}
+                  disabled={busy}
+                  className="min-h-9 rounded-full border border-line bg-card px-3 py-1.5 text-sm text-ink-2 hover:border-line-strong hover:text-ink disabled:opacity-50"
+                >
+                  {example.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {serverKey === false ? (
+            <div className="mt-4 rounded-xl border border-dashed border-line-strong p-3">
+              <label htmlFor="api-key" className="text-sm font-medium">
                 xAI API key
               </label>
-              <div className="relative min-w-0 flex-1">
+              <div className="relative mt-2">
                 <input
                   id="api-key"
                   name="xai-api-key"
@@ -168,88 +232,44 @@ export default function App() {
                   onChange={onKeyChange}
                   placeholder="Paste your key"
                   aria-describedby="api-key-help"
-                  className="w-full rounded-full border border-[#dadce0] bg-[#f8f9fa] py-3 pr-20 pl-4 text-base text-[#202124] outline-none placeholder:text-[#80868b] focus:border-[#1a73e8] focus:bg-white focus:ring-2 focus:ring-[#d2e3fc]"
+                  className="h-11 w-full rounded-lg border border-line bg-paper/60 pr-16 pl-3 text-base outline-none focus:border-ink focus:bg-card"
                 />
                 <button
                   type="button"
                   onClick={() => setShowKey((current) => !current)}
-                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full px-3 py-1.5 text-sm font-medium text-[#1a73e8] hover:bg-[#e8f0fe]"
+                  className="absolute top-1/2 right-1.5 h-8 -translate-y-1/2 rounded-md px-2.5 text-sm font-medium text-accent hover:bg-accent-soft"
                 >
                   {showKey ? "Hide" : "Show"}
                 </button>
               </div>
+              <p id="api-key-help" className="mt-2 text-xs leading-5 text-ink-3">
+                Only needed when no shared key is set up. Saved in this browser and sent to api.x.ai.{" "}
+                <a href="https://console.x.ai" target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:underline">
+                  Get a key
+                </a>
+              </p>
             </div>
-            <p id="api-key-help" className="mt-3 text-xs leading-5 text-[#5f6368]">
-              Saved in this browser only and sent to api.x.ai. Skip this on a shared computer.{" "}
-              <a
-                href="https://console.x.ai"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-[#1a73e8] underline-offset-2 hover:underline"
-              >
-                Get a key
-              </a>
-              {apiKey ? (
-                <span className="mt-1 block font-medium text-[#188038]" aria-live="polite">
-                  Saved in this browser
-                </span>
-              ) : null}
-            </p>
-          </form>
-        </section>
-        ) : null}
+          ) : null}
 
-        <form
-          onSubmit={onSubmit}
-          className="rounded-3xl border border-[#e8eaed] bg-white p-4 shadow-[0_1px_2px_rgba(60,64,67,0.08),0_8px_24px_rgba(60,64,67,0.06)] sm:p-6"
-        >
-          <label htmlFor="memory" className="text-lg font-medium text-[#202124]">
-            Describe the photo you're looking for
-          </label>
-          <p id="memory-help" className="mt-1 text-sm leading-6 text-[#5f6368]">
-            Names, places, colors, a rough year. Guesses are welcome.
-          </p>
-          <textarea
-            ref={memoryRef}
-            id="memory"
-            name="memory"
-            value={draft}
-            onChange={onDraftChange}
-            onKeyDown={onMemoryKeyDown}
-            maxLength={4000}
-            rows={5}
-            aria-describedby="memory-help"
-            placeholder="Describe the photo you're looking for... (e.g., 'beach sunset photo from last Diwali with family')"
-            className="mt-4 min-h-[140px] w-full resize-y rounded-2xl border border-[#dadce0] bg-[#f8f9fa] px-4 py-3 text-base leading-6 text-[#202124] outline-none placeholder:text-[#80868b] focus:border-[#1a73e8] focus:bg-white focus:ring-2 focus:ring-[#d2e3fc]"
-          />
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button
-              type="submit"
-              disabled={busy}
-              className="inline-flex h-11 items-center justify-center rounded-full bg-[#1a73e8] px-6 text-sm font-medium text-white hover:bg-[#1558b0] disabled:cursor-wait disabled:bg-[#8ab4f8]"
-            >
-              {busy ? "Analyzing your memory..." : "Find My Photo"}
-            </button>
-            <button
-              type="button"
-              onClick={fillExample}
-              disabled={busy}
-              className="inline-flex h-11 items-center justify-center rounded-full border border-[#dadce0] bg-white px-6 text-sm font-medium text-[#1a73e8] hover:bg-[#f8f9fa] disabled:opacity-60"
-            >
-              Try an example
-            </button>
-            <p className="hidden text-xs text-[#80868b] sm:block">Ctrl or ⌘ + Enter</p>
-          </div>
           {error ? (
-            <p role="alert" className="mt-4 rounded-2xl border border-[#f6aea9] bg-[#fce8e6] px-4 py-3 text-sm leading-6 text-[#a50e0e]">
+            <p role="alert" className="mt-4 rounded-xl bg-bad-soft px-3.5 py-3 text-sm leading-6 text-bad">
               {error}
             </p>
           ) : null}
+
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={busy}
+              className="inline-flex h-12 flex-1 items-center justify-center rounded-full bg-ink px-6 text-[15px] font-semibold text-white hover:bg-[#33312d] disabled:cursor-wait disabled:opacity-60 sm:flex-none sm:px-8"
+            >
+              {busy ? "Working on it…" : "Find my photo"}
+            </button>
+            <p className="hidden text-xs text-ink-3 sm:block">or press Ctrl / ⌘ + Enter</p>
+          </div>
         </form>
 
-        <Explainer />
-
-        <div ref={resultsRef} className="scroll-mt-24">
+        <div ref={resultsRef} className="scroll-mt-4 pt-10">
           {busy ? <LoadingState /> : null}
           {status === "success" && result ? (
             <Results
@@ -260,66 +280,54 @@ export default function App() {
               tester={tester}
             />
           ) : null}
+          {status === "idle" ? <HowItWorks /> : null}
         </div>
 
-        <footer className="pb-4 text-xs leading-5 text-[#80868b]">
-          This page does not read your Google Photos library. It only suggests what to type into search.{" "}
-          {serverKey
-            ? `Descriptions are sent to api.x.ai (${MODEL}) to generate suggestions.`
-            : `Calls go from your browser to api.x.ai using ${MODEL}.`}{" "}
-          Not affiliated with Google.
+        <footer className="mt-14 border-t border-line pt-5 text-xs leading-5 text-ink-3">
+          <p>
+            This page never sees your photos. Your description is sent to xAI ({MODEL}) to write the searches.
+            Not affiliated with Google.
+          </p>
+          <p className="mt-1">Built by Dev Sathwara as part of the NextLeap Product Management Fellowship.</p>
         </footer>
       </main>
     </div>
   );
 }
 
-function Explainer() {
+// Shown before the first search, below the fold on phones. Three lines that
+// set expectations, instead of a wall of explanation above the input.
+function HowItWorks() {
+  const steps = [
+    ["Describe it", "Fuzzy is fine. Wrong year? Still useful."],
+    ["Try the searches", "Each one opens straight in Google Photos."],
+    ["Still missing?", "See why, usually a folder that never backed up."],
+  ];
   return (
-    <section
-      aria-labelledby="explainer-heading"
-      className="rounded-3xl border border-[#e8eaed] bg-white p-4 shadow-[0_1px_2px_rgba(60,64,67,0.06)] sm:p-6"
-    >
-      <h2 id="explainer-heading" className="text-base font-medium text-[#202124]">
-        What this tool does
-      </h2>
-      <p className="mt-2 text-sm leading-6 text-[#3c4043]">
-        Describe a photo the way you remember it, including the parts you are unsure about. The assistant
-        turns that memory into short queries for the Google Photos search bar, then explains why the photo
-        may still be missing and what to fix.
-      </p>
-      <h3 className="mt-5 text-base font-medium text-[#202124]">Why Google Photos search fails</h3>
-      <ul className="mt-3 space-y-3">
-        <li className="rounded-2xl bg-[#f8f9fa] px-4 py-3 text-sm leading-6 text-[#3c4043]">
-          <span className="font-medium text-[#202124]">Only the camera folder backs up by default. </span>
-          On Android, folders like WhatsApp Images, Instagram, Downloads, and Screenshots stay on the phone
-          until you turn on backup for each one. Until then, search in the cloud can't find them.
+    <ol className="grid gap-5 sm:grid-cols-3 sm:gap-6">
+      {steps.map(([title, text], index) => (
+        <li key={title} className="flex gap-3 sm:block">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line-strong text-sm font-semibold text-ink-2">
+            {index + 1}
+          </span>
+          <div className="sm:mt-3">
+            <p className="text-[15px] font-semibold">{title}</p>
+            <p className="mt-0.5 text-sm leading-6 text-ink-3">{text}</p>
+          </div>
         </li>
-        <li className="rounded-2xl bg-[#f8f9fa] px-4 py-3 text-sm leading-6 text-[#3c4043]">
-          <span className="font-medium text-[#202124]">Old phones and full storage. </span>
-          Photos from a previous phone, or from Samsung Gallery or iCloud, only show up if they were backed up
-          before the switch. A full Google account stops backup, and the warning is easy to miss.
-        </li>
-        <li className="rounded-2xl bg-[#f8f9fa] px-4 py-3 text-sm leading-6 text-[#3c4043]">
-          <span className="font-medium text-[#202124]">Unlabeled faces. </span>
-          Searching a person's name only works after their face group is named. Photos received on WhatsApp
-          lose the original date and location, so date searches miss them.
-        </li>
-      </ul>
-    </section>
+      ))}
+    </ol>
   );
 }
 
 function Mark() {
   return (
-    <span
-      className="grid h-11 w-11 shrink-0 grid-cols-2 grid-rows-2 gap-[3px] rounded-2xl bg-white p-1.5 shadow-[0_1px_2px_rgba(60,64,67,0.16)] ring-1 ring-black/5"
-      aria-hidden="true"
-    >
-      <span className="rounded-[4px] bg-[#4285F4]" />
-      <span className="rounded-[4px] bg-[#EA4335]" />
-      <span className="rounded-[4px] bg-[#FBBC04]" />
-      <span className="rounded-[4px] bg-[#34A853]" />
-    </span>
+    <svg viewBox="0 0 32 32" className="h-8 w-8 shrink-0" aria-hidden="true">
+      <rect width="32" height="32" rx="9" fill="#1c1b19" />
+      <rect x="7" y="8" width="14" height="12" rx="2.5" fill="none" stroke="#f7f5f1" strokeWidth="2" />
+      <path d="M9 18l3.5-3.5 2.5 2.5 1.5-1.5 2.5 2.5" fill="none" stroke="#f7f5f1" strokeWidth="1.6" strokeLinejoin="round" />
+      <circle cx="21" cy="20" r="4.5" fill="#1c1b19" stroke="#8fb0f2" strokeWidth="2" />
+      <path d="M24.3 23.3l2.7 2.7" stroke="#8fb0f2" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
   );
 }

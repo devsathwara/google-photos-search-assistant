@@ -1,55 +1,71 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { sendFeedback } from "./api.js";
 import { Feedback } from "./Feedback.jsx";
 import { FolderCheck } from "./FolderCheck.jsx";
 
-const STEPS = [
-  "Open Google Photos on your phone, or photos.google.com in a browser where you are signed in.",
-  "Tap Search.",
-  "Type the query exactly as written, then run the search.",
-  "If the grid is empty, keep the wording and try the next query.",
+const LIKELIHOOD = {
+  high: { label: "Most likely", className: "bg-warn-soft text-warn" },
+  medium: { label: "Possible", className: "bg-paper text-ink-2" },
+  low: { label: "Less likely", className: "bg-paper text-ink-3" },
+};
+
+const LOADING_STEPS = [
+  "Reading your description…",
+  "Turning it into short searches…",
+  "Checking why it might be hidden…",
 ];
 
 function photosUrl(query) {
   return `https://photos.google.com/search/${encodeURIComponent(query)}`;
 }
 
-function SearchIcon() {
+function SearchIcon({ className = "h-4 w-4" }) {
   return (
-    <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="11" cy="11" r="6" />
-      <path d="M20 20l-3.5-3.5" strokeLinecap="round" />
+    <svg viewBox="0 0 24 24" className={`${className} shrink-0`} fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M20 20l-4-4" strokeLinecap="round" />
     </svg>
   );
 }
 
-function Likelihood({ value }) {
-  const styles = {
-    high: "bg-[#fce8e6] text-[#a50e0e] ring-[#f6aea9]",
-    medium: "bg-white text-[#8a4b08] ring-[#f6d7a7]",
-    low: "bg-white/80 text-[#5f6368] ring-[#e8eaed]",
-  };
-  const label = value.charAt(0).toUpperCase() + value.slice(1);
+function ArrowOut() {
   return (
-    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${styles[value] || styles.medium}`}>
-      <span className="sr-only">Likelihood </span>
-      {label}
-    </span>
+    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M8 4h8v8M16 4l-9 9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function Chevron() {
+  return (
+    <svg viewBox="0 0 20 20" className="chevron h-4 w-4 shrink-0 text-ink-3 transition-transform" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
 export function LoadingState() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setStep((s) => Math.min(s + 1, LOADING_STEPS.length - 1)), 2200);
+    return () => window.clearInterval(id);
+  }, []);
+
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="rise rounded-3xl border border-[#d2e3fc] bg-white px-5 py-10 text-center shadow-[0_1px_2px_rgba(60,64,67,0.08),0_8px_24px_rgba(60,64,67,0.06)]"
-    >
-      <span className="mx-auto block h-8 w-8 animate-spin rounded-full border-2 border-[#d2e3fc] border-t-[#1a73e8]" />
-      <p className="mt-4 text-lg font-medium text-[#202124]">Analyzing your memory...</p>
-      <p className="mx-auto mt-1 max-w-sm text-sm leading-6 text-[#5f6368]">
-        Splitting it into short Google Photos searches, and checking why those searches come back empty.
+    <div role="status" aria-live="polite" className="rise">
+      <p className="flex items-center gap-2.5 text-[15px] font-medium text-ink-2">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-line border-t-ink" aria-hidden="true" />
+        {LOADING_STEPS[step]}
       </p>
+      <div className="mt-6 space-y-3" aria-hidden="true">
+        {[0, 1, 2].map((row) => (
+          <div key={row} className="rounded-2xl border border-line bg-card p-4">
+            <div className="skeleton h-11 rounded-xl" />
+            <div className="skeleton mt-3 h-3.5 w-3/4 rounded-full" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -57,36 +73,38 @@ export function LoadingState() {
 // Asked on the card itself once a query was opened or copied, so the
 // question is waiting when the tester comes back from Google Photos.
 function QueryVerdict({ verdict, onAnswer }) {
-  const pill = "rounded-full px-4 py-2 text-sm font-medium ring-1";
-  if (verdict === "found") {
+  if (verdict) {
+    const found = verdict === "found";
     return (
-      <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-[#e6f4ea] px-4 py-3 ring-1 ring-[#ceead6]">
-        <p className="text-sm font-medium text-[#137333]">🎉 This search found it</p>
-        <button type="button" onClick={() => onAnswer(null)} className="text-sm font-medium text-[#5f6368] hover:underline">
-          Change
-        </button>
-      </div>
-    );
-  }
-  if (verdict === "miss") {
-    return (
-      <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3 ring-1 ring-[#e8eaed]">
-        <p className="text-sm text-[#5f6368]">Not this one. Try the next search.</p>
-        <button type="button" onClick={() => onAnswer(null)} className="text-sm font-medium text-[#5f6368] hover:underline">
-          Change
+      <div
+        className={`mt-3 flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-sm ${
+          found ? "bg-good-soft text-good" : "bg-paper text-ink-3"
+        }`}
+      >
+        <p className="font-medium">{found ? "✓ This search found it" : "Not this one. Try the next search."}</p>
+        <button type="button" onClick={() => onAnswer(null)} className="min-h-8 px-1 font-medium text-ink-3 underline-offset-2 hover:underline">
+          Undo
         </button>
       </div>
     );
   }
   return (
-    <div className="rise mt-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-[#d2e3fc]">
-      <p className="text-sm font-medium text-[#202124]">Did this search find your photo?</p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" onClick={() => onAnswer("found")} className={`${pill} bg-[#e6f4ea] text-[#137333] ring-[#ceead6] hover:bg-[#ceead6]`}>
-          Found it
+    <div className="rise mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-accent-soft px-3.5 py-2.5">
+      <p className="text-sm font-medium text-ink">Did it find your photo?</p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onAnswer("found")}
+          className="min-h-9 rounded-full bg-good px-4 text-sm font-semibold text-white hover:bg-[#0f5a37]"
+        >
+          Yes, found it
         </button>
-        <button type="button" onClick={() => onAnswer("miss")} className={`${pill} bg-white text-[#3c4043] ring-[#dadce0] hover:bg-[#f8f9fa]`}>
-          Not this one
+        <button
+          type="button"
+          onClick={() => onAnswer("miss")}
+          className="min-h-9 rounded-full border border-line-strong bg-card px-4 text-sm font-medium text-ink-2 hover:text-ink"
+        >
+          No
         </button>
       </div>
     </div>
@@ -112,11 +130,9 @@ export function Results({ description, plan, shownAt, tester }) {
       setCopyError("");
       flash(id);
     } catch {
-      setCopyError("Clipboard access is blocked in this browser. Select the query and copy it manually.");
+      setCopyError("Your browser blocked copying. Press and hold the search text to copy it instead.");
     }
   }
-
-  const allQueries = plan.search_strategies.map((item) => item.query).join("\n");
 
   function markTried(index) {
     setTried((current) => (current.has(index) ? current : new Set(current).add(index)));
@@ -146,170 +162,143 @@ export function Results({ description, plan, shownAt, tester }) {
     .join(",");
 
   return (
-    <div className="rise space-y-8">
-      <div>
-        <p className="text-sm text-[#5f6368]">
-          {plan.search_strategies.length} searches
-          <span aria-hidden="true"> · </span>
-          {plan.diagnostics.length} reasons it might fail
-          <span aria-hidden="true"> · </span>
-          {plan.pro_tips.length} fixes
-        </p>
-        <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#3c4043]">For “{description}”</p>
-        <a
-          href="#feedback"
-          className="mt-3 inline-flex items-center rounded-full bg-[#e8f0fe] px-4 py-2 text-sm font-medium text-[#174ea6] hover:bg-[#d2e3fc]"
-        >
-          Tried the searches? Tell us how it went ↓
-        </a>
-      </div>
-
+    <div className="rise">
       <section aria-labelledby="strategies-heading">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 id="strategies-heading" className="text-lg font-medium text-[#202124]">
-            Search strategies
-          </h2>
-          <button
-            type="button"
-            onClick={() => copy("all", allQueries)}
-            className="rounded-full px-3 py-1.5 text-sm font-medium text-[#1a73e8] hover:bg-[#e8f0fe]"
-          >
-            {copiedId === "all" ? "Copied" : "Copy all"}
-          </button>
-        </div>
-        <p className="mt-1 text-sm leading-6 text-[#5f6368]">
-          Type these into the Google Photos search bar. Short phrases match. Full sentences do not.
+        <p className="line-clamp-2 text-sm leading-6 text-ink-3">For “{description}”</p>
+        <h2 id="strategies-heading" className="mt-1 text-[24px] leading-tight font-semibold tracking-[-0.02em]">
+          Try these searches
+        </h2>
+        <p className="mt-2 text-[15px] leading-6 text-ink-2">
+          Start with the first. Each one opens in Google Photos. On your phone, you can copy it and paste it
+          into the app's search bar instead.
         </p>
-
-        <div className="mt-4 rounded-3xl border border-[#d2e3fc] bg-[#e8f0fe] p-4 sm:p-5">
-          <h3 className="text-sm font-medium text-[#174ea6]">How to run each search</h3>
-          <ol className="mt-3 grid gap-2 sm:grid-cols-2">
-            {STEPS.map((step, index) => (
-              <li key={step} className="flex gap-3 rounded-2xl bg-white/80 px-3 py-3 text-sm leading-5 text-[#3c4043] ring-1 ring-[#d2e3fc]">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1a73e8] text-xs font-medium text-white">
-                  {index + 1}
-                </span>
-                <span>{step}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
 
         {copyError ? (
-          <p role="alert" className="mt-3 text-sm text-[#a50e0e]">
+          <p role="alert" className="mt-3 rounded-xl bg-bad-soft px-3.5 py-2.5 text-sm text-bad">
             {copyError}
           </p>
         ) : null}
 
-        <ul className="mt-3 space-y-3">
+        <ol className="mt-5 space-y-3">
           {plan.search_strategies.map((item, index) => {
             const id = `query-${index}`;
+            const found = verdicts[index] === "found";
             return (
-              <li key={id} className="rounded-3xl border border-[#d2e3fc] bg-[#e8f0fe] p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs font-medium tracking-wide text-[#174ea6]">Query {index + 1}</p>
-                  <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        markTried(index);
-                        copy(id, item.query);
-                      }}
-                      className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#1a73e8] ring-1 ring-[#d2e3fc] hover:bg-[#f8fbff]"
-                    >
-                      {copiedId === id ? "Copied" : "Copy"}
-                    </button>
-                    <a
-                      href={photosUrl(item.query)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => markTried(index)}
-                      className="rounded-full bg-[#1a73e8] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1558b0]"
-                    >
-                      Open
-                    </a>
-                  </div>
+              <li
+                key={id}
+                className={`rounded-2xl border bg-card p-3.5 sm:p-4 ${found ? "border-good" : "border-line"}`}
+              >
+                <div className="flex items-center gap-2 text-xs font-medium text-ink-3">
+                  <span>Search {index + 1}</span>
+                  {index === 0 ? (
+                    <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-semibold text-white">Best bet</span>
+                  ) : null}
                 </div>
-                <div className="mt-3 flex items-start gap-2 rounded-2xl bg-white px-3 py-2.5 text-[#1a73e8] ring-1 ring-[#d2e3fc]">
-                  <SearchIcon />
-                  <p className="min-w-0 flex-1 break-words text-base font-medium text-[#202124]">{item.query}</p>
+
+                <div className="mt-2 flex items-stretch gap-2">
+                  <a
+                    href={photosUrl(item.query)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => markTried(index)}
+                    aria-label={`Search Google Photos for ${item.query} (opens in a new tab)`}
+                    className="group flex min-h-12 min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-line-strong bg-paper/50 px-3.5 py-2 hover:border-ink hover:bg-card"
+                  >
+                    <SearchIcon className="h-[18px] w-[18px] text-ink-3 group-hover:text-ink" />
+                    <span className="min-w-0 flex-1 text-[17px] leading-6 font-semibold break-words">{item.query}</span>
+                    <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-accent">
+                      <span className="hidden sm:inline">Open</span>
+                      <ArrowOut />
+                    </span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      markTried(index);
+                      copy(id, item.query);
+                    }}
+                    aria-label={`Copy ${item.query}`}
+                    className="min-h-12 w-[68px] shrink-0 rounded-xl border border-line text-sm font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                  >
+                    {copiedId === id ? "Copied" : "Copy"}
+                  </button>
                 </div>
-                <p className="mt-3 text-sm leading-6 whitespace-pre-wrap text-[#3c4043]">{item.explanation}</p>
+
+                <p className="mt-2.5 text-sm leading-6 text-ink-3">{item.explanation}</p>
+
                 {tried.has(index) || verdicts[index] ? (
                   <QueryVerdict verdict={verdicts[index] ?? null} onAnswer={(verdict) => answerQuery(index, verdict)} />
                 ) : null}
               </li>
             );
           })}
-        </ul>
+        </ol>
       </section>
 
-      <section aria-labelledby="diagnostics-heading">
-        <h2 id="diagnostics-heading" className="text-lg font-medium text-[#202124]">
-          Why your search might fail
+      <section aria-labelledby="missing-heading" className="mt-12">
+        <h2 id="missing-heading" className="text-[24px] leading-tight font-semibold tracking-[-0.02em]">
+          Still can't find it?
         </h2>
-        <p className="mt-1 text-sm leading-6 text-[#5f6368]">
-          Likely reasons this photo stays hidden, highest chance first.
+        <p className="mt-2 text-[15px] leading-6 text-ink-2">
+          Search only sees photos that were backed up. These are the most likely reasons this one isn't showing.
         </p>
-        <ul className="mt-4 space-y-3">
-          {plan.diagnostics.length === 0 ? (
-            <li className="rounded-3xl border border-[#fde293] bg-[#fef7e0] p-4 text-sm leading-6 text-[#3c4043] sm:p-5">
-              Nothing in this description points to one specific failure. Try the queries above, and confirm the photo was backed up from the camera roll.
-            </li>
-          ) : (
-            plan.diagnostics.map((item, index) => (
-              <li key={`${item.issue}-${index}`} className="rounded-3xl border border-[#fde293] bg-[#fef7e0] p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="text-base font-medium text-[#202124]">{item.issue}</h3>
-                  <Likelihood value={item.likelihood} />
-                </div>
-                <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-[#3c4043]">{item.explanation}</p>
-              </li>
-            ))
-          )}
-        </ul>
-      </section>
 
-      <FolderCheck />
+        {plan.diagnostics.length > 0 ? (
+          <div className="mt-5 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-card">
+            {plan.diagnostics.map((item, index) => {
+              const level = LIKELIHOOD[item.likelihood] ?? LIKELIHOOD.medium;
+              return (
+                <details key={`${item.issue}-${index}`} open={index === 0} className="group">
+                  <summary className="flex min-h-14 cursor-pointer items-center gap-3 px-4 py-3 hover:bg-paper/50">
+                    <span className="min-w-0 flex-1">
+                      <span className={`mr-2 inline-block rounded-md px-1.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${level.className}`}>
+                        {level.label}
+                      </span>
+                      <span className="text-[15px] leading-6 font-semibold">{item.issue}</span>
+                    </span>
+                    <Chevron />
+                  </summary>
+                  <p className="px-4 pb-4 text-sm leading-6 whitespace-pre-wrap text-ink-2">{item.explanation}</p>
+                </details>
+              );
+            })}
+          </div>
+        ) : null}
 
-      <section aria-labelledby="tips-heading">
-        <h2 id="tips-heading" className="text-lg font-medium text-[#202124]">
-          Pro tips
-        </h2>
-        <p className="mt-1 text-sm leading-6 text-[#5f6368]">Steps that fix the most likely miss.</p>
-        <ul className="mt-4 space-y-3">
-          {plan.pro_tips.length === 0 ? (
-            <li className="rounded-3xl border border-[#ceead6] bg-[#e6f4ea] p-4 text-sm leading-6 text-[#3c4043] sm:p-5">
-              The assistant did not return extra fixes for this memory. Start with the queries above.
-            </li>
-          ) : (
-            plan.pro_tips.map((item, index) => (
-              <li key={`${item.tip}-${index}`} className="rounded-3xl border border-[#ceead6] bg-[#e6f4ea] p-4 sm:p-5">
-                <div className="flex gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#188038] text-sm font-medium text-white">
+        {plan.pro_tips.length > 0 ? (
+          <div className="mt-6">
+            <h3 className="text-base font-semibold">What to do</h3>
+            <ol className="mt-3 space-y-4">
+              {plan.pro_tips.map((item, index) => (
+                <li key={`${item.tip}-${index}`} className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white">
                     {index + 1}
                   </span>
                   <div className="min-w-0">
-                    <h3 className="text-base font-medium text-[#202124]">{item.tip}</h3>
-                    <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-[#3c4043]">{item.detail}</p>
+                    <p className="text-[15px] leading-6 font-semibold">{item.tip}</p>
+                    <p className="mt-0.5 text-sm leading-6 whitespace-pre-wrap text-ink-2">{item.detail}</p>
                   </div>
-                </div>
-              </li>
-            ))
-          )}
-        </ul>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+
+        <FolderCheck />
       </section>
 
-      <Feedback
-        key={foundIndex ?? "none"}
-        description={description}
-        plan={plan}
-        shownAt={shownAt}
-        tester={tester}
-        foundIndex={foundIndex}
-        queriesTried={tried.size}
-        queryResults={queryResults}
-      />
+      <div className="mt-12">
+        <Feedback
+          key={foundIndex ?? "none"}
+          description={description}
+          plan={plan}
+          shownAt={shownAt}
+          tester={tester}
+          foundIndex={foundIndex}
+          queriesTried={tried.size}
+          queryResults={queryResults}
+        />
+      </div>
     </div>
   );
 }
