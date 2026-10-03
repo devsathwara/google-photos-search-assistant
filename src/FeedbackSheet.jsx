@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
 // Feedback is asked when the tester comes back from Google Photos, not at
-// the bottom of the page. Each answer maps to a Part 4 / Part 7 metric:
-//   verdict / found + which -> AI-Assisted Search Success Rate (>=60%)
-//   before                  -> baseline: was this photo already "lost"?
-//   setting                 -> backup action rate (>=30%)
-//   rate                    -> satisfaction and desirability
+// the bottom of the page. Two kinds of question:
+//   per search, every time: verdict, and on a miss what they saw
+//     -> AI-Assisted Search Success Rate (>=60%) by query position
+//   per session, once (REST): looked before, setting changed, rating
+//     -> baseline, backup action rate (>=30%), satisfaction
 const MISS_REASONS = [
   { id: "no_results", label: "No results at all" },
   { id: "wrong_photos", label: "Photos, but not the one I wanted" },
@@ -72,7 +72,17 @@ function initialState(entry, foundIndex) {
   return { path: ["found"], answers: { found: null, foundVia: null } };
 }
 
-export function FeedbackSheet({ entry, plan, verdicts, foundIndex, onVerdict, onTryQuery, onClose, onSubmit }) {
+export function FeedbackSheet({
+  entry,
+  plan,
+  verdicts,
+  foundIndex,
+  sessionDone,
+  onVerdict,
+  onTryQuery,
+  onClose,
+  onSubmit,
+}) {
   const queries = plan.search_strategies;
   const [state] = useState(() => initialState(entry, foundIndex));
   const [path, setPath] = useState(state.path);
@@ -120,17 +130,28 @@ export function FeedbackSheet({ entry, plan, verdicts, foundIndex, onVerdict, on
     return after[0] ?? before[0] ?? null;
   }
 
+  // After a search is answered: session questions if they're still owed,
+  // otherwise a short "noted" screen.
+  const tail = sessionDone ? ["noted"] : REST;
+
   function answerVerdict(value) {
     if (value === "later") return onClose();
-    onVerdict(queryIndex, value);
     if (value === "found") {
-      advance(["verdict", ...REST], { found: true, foundVia: queryIndex });
+      onVerdict(queryIndex, "found");
+      advance(["verdict", ...tail], { found: true, foundVia: queryIndex });
       return;
     }
+    advance(["verdict", "miss"], { found: false });
+  }
+
+  // A miss on a specific search is logged with its reason, then the tester
+  // is pointed at the next untried search.
+  function answerQueryMiss(reason) {
+    onVerdict(queryIndex, "miss", reason);
     const next = firstUntried(queryIndex);
     setNextIndex(next);
-    if (next != null) advance(["verdict", "next"], { found: false });
-    else advance(["verdict", "miss", ...REST], { found: false });
+    if (next != null) advance(["verdict", "miss", "next"], { missReason: reason });
+    else advance(["verdict", "miss", ...tail], { missReason: reason });
   }
 
   function submit() {
@@ -173,7 +194,10 @@ export function FeedbackSheet({ entry, plan, verdicts, foundIndex, onVerdict, on
           <span className="min-w-0 flex-1 text-[15px] font-semibold">Open “{next.query}”</span>
           <span aria-hidden="true">↗</span>
         </a>
-        <Choice label="I'm done searching" onClick={() => advance(["verdict", "next", "miss", ...REST])} />
+        <Choice
+          label="I'm done searching"
+          onClick={() => (sessionDone ? onClose() : advance(["verdict", "miss", "next", ...REST]))}
+        />
       </div>
     );
   } else if (step === "found") {
@@ -209,18 +233,32 @@ export function FeedbackSheet({ entry, plan, verdicts, foundIndex, onVerdict, on
       </div>
     );
   } else if (step === "miss") {
-    title = "What did you see in Google Photos?";
+    title = queryIndex != null ? `What did “${queries[queryIndex].query}” show?` : "What did you see in Google Photos?";
     body = (
       <div className="grid gap-2">
-        {MISS_REASONS.map((item) => (
+        {MISS_REASONS.filter((item) => queryIndex == null || item.id !== "not_tried").map((item) => (
           <Choice
             key={item.id}
             label={item.label}
             selected={answers.missReason === item.id}
-            onClick={() => advance(null, { missReason: item.id })}
+            onClick={() => (queryIndex != null ? answerQueryMiss(item.id) : advance(null, { missReason: item.id }))}
           />
         ))}
       </div>
+    );
+  } else if (step === "noted") {
+    title = answers.found ? "Great, noted." : "Noted.";
+    subtitle = answers.found
+      ? "Thanks for telling us which search worked."
+      : "You can try another search any time. We'll ask about it when you come back.";
+    body = (
+      <button
+        type="button"
+        onClick={onClose}
+        className="inline-flex h-12 w-full items-center justify-center rounded-full bg-ink px-6 text-[15px] font-semibold text-white hover:bg-[#33312d]"
+      >
+        Close
+      </button>
     );
   } else if (step === "before") {
     title = "Had you looked for this photo before today?";
@@ -363,7 +401,8 @@ export function FeedbackSheet({ entry, plan, verdicts, foundIndex, onVerdict, on
               Thank you
             </h2>
             <p className="mx-auto mt-1.5 max-w-xs text-[15px] leading-6 text-ink-2">
-              Your answers go straight into the research behind this project.
+              Your answers go straight into the research behind this project. Trying another search? We'll ask
+              about it when you come back.
             </p>
             <button
               type="button"

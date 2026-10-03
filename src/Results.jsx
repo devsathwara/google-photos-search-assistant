@@ -73,14 +73,13 @@ export function LoadingState() {
 
 // Status line on a search card after it was opened or copied. The full
 // questions live in the sheet; this is the way back to it.
-function QueryStatus({ verdict, onAsk, locked }) {
+function QueryStatus({ verdict, onAsk }) {
   if (verdict === "found") {
     return <p className="mt-3 rounded-xl bg-good-soft px-3.5 py-2.5 text-sm font-medium text-good">✓ This search found it</p>;
   }
   if (verdict === "miss") {
     return <p className="mt-3 rounded-xl bg-paper px-3.5 py-2.5 text-sm text-ink-3">Didn't find it with this one</p>;
   }
-  if (locked) return null;
   return (
     <button
       type="button"
@@ -105,10 +104,10 @@ export function Results({ description, plan, shownAt, tester }) {
   // blurred since. Coming back with both set opens the sheet for that search.
   const pending = useRef(null);
   const wasAway = useRef(false);
-  const latest = useRef({ verdicts, submitted, sheet });
+  const latest = useRef({ verdicts, sheet });
   useEffect(() => {
-    latest.current = { verdicts, submitted, sheet };
-  }, [verdicts, submitted, sheet]);
+    latest.current = { verdicts, sheet };
+  }, [verdicts, sheet]);
 
   function flash(id) {
     setCopiedId(id);
@@ -141,8 +140,8 @@ export function Results({ description, plan, shownAt, tester }) {
       const index = pending.current;
       pending.current = null;
       wasAway.current = false;
-      const { verdicts: v, submitted: done, sheet: open } = latest.current;
-      if (index == null || done || open || v[index]) return;
+      const { verdicts: v, sheet: open } = latest.current;
+      if (index == null || open || v[index]) return;
       setSheet({ type: "query", index });
     }
     function onVisibility() {
@@ -161,13 +160,16 @@ export function Results({ description, plan, shownAt, tester }) {
 
   const closeSheet = useCallback(() => setSheet(null), []);
 
-  function answerQuery(index, verdict) {
-    if (verdicts[index] === verdict) return;
+  // One row per search answer. A changed answer sends a new row; the latest
+  // row per search wins when the results are tallied.
+  function answerQuery(index, verdict, missReason = "") {
+    if (verdicts[index] === verdict && !missReason) return;
     setVerdicts((current) => ({ ...current, [index]: verdict }));
     sendFeedback({
       kind: "query",
       tester,
       outcome: verdict === "found" ? "found" : "not_found",
+      missReason,
       queryIndex: index + 1,
       query: plan.search_strategies[index].query,
       queryCount: plan.search_strategies.length,
@@ -181,7 +183,9 @@ export function Results({ description, plan, shownAt, tester }) {
   const foundIndex = foundEntry ? Number(foundEntry[0]) : null;
 
   function submitSummary(answers) {
-    const via = answers.foundVia;
+    // A find on any earlier search still counts for the session.
+    const found = answers.found || foundIndex != null;
+    const via = typeof answers.foundVia === "number" || answers.foundVia === "other" ? answers.foundVia : foundIndex;
     const queries = plan.search_strategies;
     const queryResults = Object.entries(verdicts)
       .map(([index, value]) => `${Number(index) + 1}:${value}`)
@@ -189,7 +193,7 @@ export function Results({ description, plan, shownAt, tester }) {
     sendFeedback({
       kind: "summary",
       tester,
-      outcome: answers.found ? "found" : "not_found",
+      outcome: found ? "found" : "not_found",
       queryIndex: typeof via === "number" ? via + 1 : undefined,
       query: typeof via === "number" ? queries[via].query : via === "other" ? "(something else)" : "",
       missReason: answers.missReason ?? "",
@@ -276,7 +280,6 @@ export function Results({ description, plan, shownAt, tester }) {
                 {tried.has(index) || verdicts[index] ? (
                   <QueryStatus
                     verdict={verdicts[index] ?? null}
-                    locked={submitted}
                     onAsk={() => setSheet({ type: "query", index })}
                   />
                 ) : null}
@@ -340,7 +343,7 @@ export function Results({ description, plan, shownAt, tester }) {
 
       {submitted ? (
         <p className="mt-12 rounded-2xl border border-line bg-card px-4 py-3.5 text-center text-sm text-ink-2">
-          Thanks for the feedback. Looking for another photo? Describe it at the top.
+          Thanks for the feedback. Trying another search above? We'll ask how it went when you come back.
         </p>
       ) : (
         <>
@@ -368,6 +371,7 @@ export function Results({ description, plan, shownAt, tester }) {
           plan={plan}
           verdicts={verdicts}
           foundIndex={foundIndex}
+          sessionDone={submitted}
           onVerdict={answerQuery}
           onTryQuery={markTried}
           onClose={closeSheet}
